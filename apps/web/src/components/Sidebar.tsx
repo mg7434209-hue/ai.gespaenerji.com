@@ -32,7 +32,7 @@ export function Sidebar() {
             <Sparkles className="w-5 h-5 text-slate-950" />
           </div>
           <div>
-            <div className="font-bold text-slate-100">Göksoylar OS</div>
+            <div className="font-bold text-slate-100">Gespa OS</div>
             <div className="text-xs text-slate-400">v0.1.0</div>
           </div>
         </div>
