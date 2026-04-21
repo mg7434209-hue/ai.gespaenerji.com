@@ -108,7 +108,7 @@ DEFAULT_AGENTS = [
 ]
 
 
-# İlk workspace'ler — Göksoylar'ın mevcut iş kolları
+# İlk workspace'ler — Mustafa'nın mevcut iş kolları
 DEFAULT_WORKSPACES = [
     {
         "slug": "superonline",
