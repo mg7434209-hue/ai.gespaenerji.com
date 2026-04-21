@@ -1,3 +1,5 @@
+
+import { WhiskyHourCard } from '@/components/WhiskyHourCard'
 import { useEffect, useState } from 'react'
 import { TrendingUp, Users, Target, Zap, ArrowUpRight } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -132,6 +134,16 @@ export function Dashboard() {
             <div className="font-semibold text-slate-100 mb-1">API Anahtarları</div>
             <div className="text-sm text-slate-400">Anthropic, OpenAI, Gemini</div>
           </Link>
+        </div>
+      </div>
+
+      {/* Viski Saati 🥃 */}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">
+          Mola Vakti
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <WhiskyHourCard />
         </div>
       </div>
     </div>
