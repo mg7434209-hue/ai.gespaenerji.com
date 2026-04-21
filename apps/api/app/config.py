@@ -12,13 +12,20 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 gün
 
     # Admin (tek kullanıcı — başlangıçta seed edilir)
-    admin_email: str = "admin@goksoylar.com"
+    admin_email: str = "admin@gespa.com"
     admin_password: str = "change-me"
 
     # AI Keys
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     gemini_api_key: str = ""
+
+    # WhatsApp Business API (Meta Cloud)
+    whatsapp_access_token: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_business_account_id: str = ""
+    whatsapp_webhook_verify_token: str = "gespa-wh-verify-token-change-me"
+    whatsapp_app_secret: str = ""
 
     # Environment
     environment: str = "development"

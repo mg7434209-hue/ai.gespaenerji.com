@@ -1,4 +1,4 @@
-"""Göksoylar OS — FastAPI entry point."""
+"""Gespa OS — FastAPI entry point."""
 import os
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -14,24 +14,25 @@ from app.auth.routes import router as auth_router
 from app.routers.workspaces import router as workspaces_router
 from app.routers.leads import router as leads_router
 from app.routers.agents import router as agents_router
+from app.routers.whatsapp import router as whatsapp_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Başlangıçta tabloları oluştur + seed et
-    print("🚀 Göksoylar OS başlatılıyor...")
+    print("🚀 Gespa OS başlatılıyor...")
     try:
         seed()
     except Exception as e:
         print(f"⚠ Seed hatası (devam ediliyor): {e}")
     yield
-    print("👋 Göksoylar OS kapanıyor...")
+    print("👋 Gespa OS kapanıyor...")
 
 
 app = FastAPI(
-    title="Göksoylar OS",
-    description="İç yönetim platformu — AI departmanları + workspace sistemi",
-    version="0.1.0",
+    title="Gespa OS",
+    description="Kişisel CEO Asistanı — AI departmanları + workspace sistemi",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -43,6 +44,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:3000",
         "https://os.gespaenerji.com",
+        "https://aigespaenerjicom-production.up.railway.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -55,14 +57,15 @@ app.include_router(auth_router)
 app.include_router(workspaces_router)
 app.include_router(leads_router)
 app.include_router(agents_router)
+app.include_router(whatsapp_router)
 
 
 @app.get("/api/health")
 def health():
     return {
         "status": "ok",
-        "app": "goksoylar-os",
-        "version": "0.1.0",
+        "app": "gespa-os",
+        "version": "0.2.0",
         "environment": settings.environment,
     }
 
@@ -98,7 +101,7 @@ else:
     @app.get("/")
     def root():
         return {
-            "app": "Göksoylar OS API",
+            "app": "Gespa OS API",
             "status": "running",
             "note": "Frontend build bulunamadı. Lokal geliştirmede Vite dev server kullan (http://localhost:5173).",
             "docs": "/docs",

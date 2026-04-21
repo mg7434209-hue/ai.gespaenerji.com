@@ -108,7 +108,7 @@ DEFAULT_AGENTS = [
 ]
 
 
-# İlk workspace'ler — Göksoylar'ın mevcut iş kolları
+# İlk workspace'ler — Mustafa'nın mevcut iş kolları
 DEFAULT_WORKSPACES = [
     {
         "slug": "superonline",
@@ -155,24 +155,32 @@ DEFAULT_WORKSPACES = [
 ]
 
 
+# Admin profili — değişirse her deploy'da güncellenir
+ADMIN_FULL_NAME = "Mustafa Göksoy"
+
+
 def seed():
     """Tablolar + ilk veri."""
     Base.metadata.create_all(bind=engine)
 
     db: Session = SessionLocal()
     try:
-        # Admin user
+        # Admin user (upsert — varsa güncelle, yoksa oluştur)
         admin = db.query(User).filter(User.email == settings.admin_email.lower()).first()
         if not admin:
             admin = User(
                 email=settings.admin_email.lower(),
                 password_hash=hash_password(settings.admin_password),
-                full_name="Mustafa Göksoylar",
+                full_name=ADMIN_FULL_NAME,
             )
             db.add(admin)
             print(f"✓ Admin user oluşturuldu: {admin.email}")
         else:
-            # Şifre env'de değiştiyse güncelle
+            # İsim güncellemesi (her deploy'da senkron)
+            if admin.full_name != ADMIN_FULL_NAME:
+                print(f"✓ Admin ismi güncellendi: {admin.full_name} → {ADMIN_FULL_NAME}")
+                admin.full_name = ADMIN_FULL_NAME
+            # Şifre boşsa yeniden hashle
             if not admin.password_hash:
                 admin.password_hash = hash_password(settings.admin_password)
 

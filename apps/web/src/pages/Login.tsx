@@ -30,8 +30,8 @@ export function Login() {
             <Sparkles className="w-6 h-6 text-slate-950" />
           </div>
           <div>
-            <div className="text-xl font-bold text-slate-100">Göksoylar OS</div>
-            <div className="text-xs text-slate-400">İç yönetim platformu</div>
+            <div className="text-xl font-bold text-slate-100">Gespa OS</div>
+            <div className="text-xs text-slate-400">Kişisel CEO Asistanı</div>
           </div>
         </div>
 
@@ -47,7 +47,7 @@ export function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="input"
-              placeholder="mustafa@goksoylar.com"
+              placeholder="mustafa@gespa.com"
             />
           </div>
 
@@ -82,7 +82,7 @@ export function Login() {
         </form>
 
         <p className="text-center text-xs text-slate-500 mt-6">
-          © 2026 Göksoylar İletişim Ltd. Şti. · Tüm hakları saklıdır.
+          © 2026 Gespa · Tüm hakları saklıdır.
         </p>
       </div>
     </div>
