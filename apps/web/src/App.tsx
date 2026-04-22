@@ -8,6 +8,7 @@ import { Leads } from './pages/Leads'
 import { Agents } from './pages/Agents'
 import { Settings } from './pages/Settings'
 import { Inbox } from './pages/Inbox'
+import { Roadmap } from './pages/Roadmap'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="inbox" element={<Inbox />} />
+        <Route path="roadmap" element={<Roadmap />} />
         <Route path="workspaces" element={<Workspaces />} />
         <Route path="workspaces/:slug" element={<Workspaces />} />
         <Route path="leads" element={<Leads />} />
