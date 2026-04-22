@@ -8,6 +8,7 @@ import {
   LogOut,
   Sparkles,
   MessageSquare,
+  Map,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '@/lib/auth'
@@ -15,6 +16,7 @@ import { useAuth } from '@/lib/auth'
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/inbox', label: 'Inbox', icon: MessageSquare },
+  { to: '/roadmap', label: 'Yol Haritası', icon: Map },
   { to: '/workspaces', label: 'Workspaces', icon: Briefcase },
   { to: '/leads', label: 'Lead Yönetimi', icon: Users },
   { to: '/agents', label: 'AI Ajanlar', icon: Bot },
@@ -35,7 +37,7 @@ export function Sidebar() {
           </div>
           <div>
             <div className="font-bold text-slate-100">Gespa OS</div>
-            <div className="text-xs text-slate-400">v0.2.0</div>
+            <div className="text-xs text-slate-400">v0.3.0</div>
           </div>
         </div>
       </div>
