@@ -96,7 +96,7 @@ class AIAssistant:
     def __init__(self):
         self.api_key = settings.anthropic_api_key
         self.client = Anthropic(api_key=self.api_key) if self.api_key else None
-        self.model = "claude-sonnet-4-20250514"
+        self.model = "claude-sonnet-4-6"
 
     def is_configured(self) -> bool:
         return bool(self.api_key and self.client)

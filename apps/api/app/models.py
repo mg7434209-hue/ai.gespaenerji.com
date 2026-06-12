@@ -86,7 +86,7 @@ class Agent(Base):
     icon: Mapped[Optional[str]] = mapped_column(String(64))
     color: Mapped[Optional[str]] = mapped_column(String(32))
     system_prompt: Mapped[Optional[str]] = mapped_column(Text)
-    model: Mapped[str] = mapped_column(String(64), default="claude-sonnet-4-20250514")
+    model: Mapped[str] = mapped_column(String(64), default="claude-sonnet-4-6")
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     config: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

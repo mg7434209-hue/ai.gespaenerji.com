@@ -46,7 +46,7 @@ export function Settings() {
           </div>
         </div>
         <div className="space-y-2 text-sm">
-          <ApiKeyRow name="ANTHROPIC_API_KEY" provider="Claude Sonnet 4" />
+          <ApiKeyRow name="ANTHROPIC_API_KEY" provider="Claude Sonnet 4.6" />
           <ApiKeyRow name="OPENAI_API_KEY" provider="GPT-4o-mini" />
           <ApiKeyRow name="GEMINI_API_KEY" provider="Gemini Vision" />
         </div>
@@ -90,7 +90,7 @@ export function Settings() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <div className="text-slate-400 mb-1">Versiyon</div>
-            <div className="text-slate-100">v0.1.0 (Faz 1 Hafta 1)</div>
+            <div className="text-slate-100">v0.2.0 (Faz 1 Hafta 2)</div>
           </div>
           <div>
             <div className="text-slate-400 mb-1">Veritabanı</div>

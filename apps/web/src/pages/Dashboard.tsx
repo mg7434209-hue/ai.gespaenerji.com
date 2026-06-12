@@ -4,24 +4,27 @@ import { useEffect, useState } from 'react'
 import { TrendingUp, Users, Target, Zap, ArrowUpRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import type { Workspace, WorkspaceStats } from '@/types'
+import type { Workspace, WorkspaceStats, Agent } from '@/types'
 import { Link } from 'react-router-dom'
 
 export function Dashboard() {
   const { user } = useAuth()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [agentCount, setAgentCount] = useState<number | null>(null)
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       try {
-        const [wsRes, statsRes] = await Promise.all([
+        const [wsRes, statsRes, agentsRes] = await Promise.all([
           api.get<Workspace[]>('/workspaces'),
           api.get<WorkspaceStats>('/workspaces/superonline/stats').catch(() => null),
+          api.get<Agent[]>('/agents').catch(() => null),
         ])
         setWorkspaces(wsRes.data)
         if (statsRes) setStats(statsRes.data)
+        if (agentsRes) setAgentCount(agentsRes.data.length)
       } finally {
         setLoading(false)
       }
@@ -45,7 +48,7 @@ export function Dashboard() {
           {greeting}, {user?.full_name?.split(' ')[0] || 'Mustafa'} 👋
         </h1>
         <p className="text-slate-400 mt-1">
-          Bugün {workspaces.length} workspace ve 12 AI ajanı ile çalışıyorsun.
+          Bugün {workspaces.length} workspace ve {agentCount ?? '—'} AI ajanı ile çalışıyorsun.
         </p>
       </div>
 

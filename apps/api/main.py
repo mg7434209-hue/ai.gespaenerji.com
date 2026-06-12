@@ -21,6 +21,11 @@ from app.routers.whatsapp import router as whatsapp_router
 async def lifespan(app: FastAPI):
     # Başlangıçta tabloları oluştur + seed et
     print("🚀 Gespa OS başlatılıyor...")
+
+    # Üretim güvenlik kontrolü — varsayılan gizli anahtarlar açıkta mı?
+    for warning in settings.security_warnings():
+        print(f"🔴 GÜVENLİK UYARISI: {warning}")
+
     try:
         seed()
     except Exception as e:
@@ -62,11 +67,24 @@ app.include_router(whatsapp_router)
 
 @app.get("/api/health")
 def health():
+    # DB bağlantısını hafifçe kontrol et
+    db_ok = True
+    try:
+        from sqlalchemy import text
+        from app.database import engine
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as e:
+        db_ok = False
+        print(f"⚠ Health check DB hatası: {e}")
+
     return {
-        "status": "ok",
+        "status": "ok" if db_ok else "degraded",
         "app": "gespa-os",
         "version": "0.2.0",
         "environment": settings.environment,
+        "database": "ok" if db_ok else "error",
     }
 
 

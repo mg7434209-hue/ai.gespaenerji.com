@@ -41,5 +41,18 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
 
+    def security_warnings(self) -> list[str]:
+        """Üretimde hâlâ varsayılan değerde kalan kritik gizli anahtarları listeler."""
+        if not self.is_production:
+            return []
+        issues = []
+        if self.jwt_secret in ("dev-secret-change-in-production", "", None):
+            issues.append("JWT_SECRET hâlâ varsayılan değerde — token'lar taklit edilebilir!")
+        if self.admin_password in ("change-me", "", None):
+            issues.append("ADMIN_PASSWORD hâlâ varsayılan değerde — admin hesabı savunmasız!")
+        if self.whatsapp_webhook_verify_token == "gespa-wh-verify-token-change-me":
+            issues.append("WHATSAPP_WEBHOOK_VERIFY_TOKEN hâlâ varsayılan değerde.")
+        return issues
+
 
 settings = Settings()

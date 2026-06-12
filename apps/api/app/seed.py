@@ -198,6 +198,18 @@ def seed():
                 db.add(Agent(**agent_data))
                 print(f"✓ Ajan eklendi: {agent_data['slug']}")
 
+        # Model güncellemesi — emekliye ayrılan eski model ID'lerini güncelle
+        # (claude-sonnet-4-20250514 → 15 Haziran 2026'da emekli)
+        RETIRED_MODELS = {"claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022"}
+        CURRENT_MODEL = "claude-sonnet-4-6"
+        migrated = (
+            db.query(Agent)
+            .filter(Agent.model.in_(RETIRED_MODELS))
+            .update({Agent.model: CURRENT_MODEL}, synchronize_session=False)
+        )
+        if migrated:
+            print(f"✓ {migrated} ajanın modeli güncellendi → {CURRENT_MODEL}")
+
         db.commit()
         print("✓ Seed tamamlandı.")
     except Exception as e:
