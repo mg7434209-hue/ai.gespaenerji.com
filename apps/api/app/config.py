@@ -2,6 +2,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# Tek kaynak — versiyon her yerde buradan okunur (main.py, health, system status).
+APP_VERSION = "0.3.0"
+
+
 class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./dev.db"

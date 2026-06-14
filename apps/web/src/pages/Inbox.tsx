@@ -118,6 +118,13 @@ export function Inbox() {
     }
   }
 
+  async function updateAiMode(convId: number, ai_mode: string) {
+    // Optimistik güncelle, sonra sunucudan tazele
+    setConversations(prev => prev.map(c => (c.id === convId ? { ...c, ai_mode } : c)))
+    await api.patch(`/whatsapp/conversations/${convId}`, { ai_mode })
+    await loadConversations()
+  }
+
   const selectedConv = conversations.find(c => c.id === selectedId)
 
   return (
@@ -224,8 +231,19 @@ export function Inbox() {
                   {selectedConv.phone}
                 </div>
               </div>
-              <div className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded">
-                {AI_MODE_LABELS[selectedConv.ai_mode]}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wide text-slate-500 flex items-center gap-1">
+                  <Bot className="w-3 h-3" /> AI Modu
+                </span>
+                <select
+                  value={selectedConv.ai_mode}
+                  onChange={(e) => updateAiMode(selectedConv.id, e.target.value)}
+                  className="text-xs bg-slate-800 text-slate-200 border border-slate-700 rounded px-2 py-1 outline-none focus:border-brand-500"
+                >
+                  {Object.entries(AI_MODE_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

@@ -1,8 +1,18 @@
+import { useEffect, useState } from 'react'
+import { Key, Globe, Database, Shield, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { Key, Globe, Database, Shield, CheckCircle2 } from 'lucide-react'
+import { api } from '@/lib/api'
+import type { SystemStatus, IntegrationStatus } from '@/types'
 
 export function Settings() {
   const { user } = useAuth()
+  const [status, setStatus] = useState<SystemStatus | null>(null)
+
+  useEffect(() => {
+    api.get<SystemStatus>('/system/status')
+      .then((r) => setStatus(r.data))
+      .catch(() => setStatus(null))
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -46,16 +56,16 @@ export function Settings() {
           </div>
         </div>
         <div className="space-y-2 text-sm">
-          <ApiKeyRow name="ANTHROPIC_API_KEY" provider="Claude Sonnet 4" />
-          <ApiKeyRow name="OPENAI_API_KEY" provider="GPT-4o-mini" />
-          <ApiKeyRow name="GEMINI_API_KEY" provider="Gemini Vision" />
+          <ApiKeyRow name="ANTHROPIC_API_KEY" provider="Claude Sonnet 4" ok={status?.api_keys.anthropic} />
+          <ApiKeyRow name="OPENAI_API_KEY" provider="GPT-4o-mini" ok={status?.api_keys.openai} />
+          <ApiKeyRow name="GEMINI_API_KEY" provider="Gemini Vision" ok={status?.api_keys.gemini} />
         </div>
         <div className="mt-4 p-3 bg-slate-800/50 rounded-lg text-xs text-slate-400">
-          💡 API anahtarlarını değiştirmek için Railway → goksoylar-os → Variables sekmesini kullan.
+          💡 API anahtarlarını değiştirmek için Railway → Variables sekmesini kullan. Yeşil = yapılandırılmış, kırmızı = eksik.
         </div>
       </div>
 
-      {/* Integrations — planned */}
+      {/* Integrations */}
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
@@ -63,16 +73,15 @@ export function Settings() {
           </div>
           <div>
             <div className="font-semibold text-slate-100">Dış Entegrasyonlar</div>
-            <div className="text-sm text-slate-400">Faz 2'de gelecek</div>
+            <div className="text-sm text-slate-400">Canlı durum — gerçek yapılandırmadan okunur</div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <IntegrationCard name="WhatsApp Business API" status="planned" />
-          <IntegrationCard name="Gmail (MCP)" status="planned" />
-          <IntegrationCard name="Vapi (Sesli ajan)" status="planned" />
-          <IntegrationCard name="n8n Workflows" status="planned" />
-          <IntegrationCard name="SolarAnaliz API" status="planned" />
-          <IntegrationCard name="TrafikRehber API" status="planned" />
+          <IntegrationCard name="WhatsApp Business API" data={status?.integrations.whatsapp} />
+          <IntegrationCard name="AI Asistan (Claude)" data={status?.integrations.ai_assistant} />
+          <IntegrationCard name="Gmail (MCP)" data={status?.integrations.gmail} />
+          <IntegrationCard name="Vapi (Sesli ajan)" data={status?.integrations.vapi} />
+          <IntegrationCard name="n8n Workflows" data={status?.integrations.n8n} />
         </div>
       </div>
 
@@ -90,19 +99,19 @@ export function Settings() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <div className="text-slate-400 mb-1">Versiyon</div>
-            <div className="text-slate-100">v0.1.0 (Faz 1 Hafta 1)</div>
+            <div className="text-slate-100">v{status?.version ?? '—'}</div>
+          </div>
+          <div>
+            <div className="text-slate-400 mb-1">Ortam</div>
+            <div className="text-slate-100 capitalize">{status?.environment ?? '—'}</div>
           </div>
           <div>
             <div className="text-slate-400 mb-1">Veritabanı</div>
-            <div className="text-slate-100">PostgreSQL (Railway)</div>
+            <div className="text-slate-100">{status?.database ?? '—'}</div>
           </div>
           <div>
-            <div className="text-slate-400 mb-1">Backend</div>
-            <div className="text-slate-100">FastAPI + SQLAlchemy</div>
-          </div>
-          <div>
-            <div className="text-slate-400 mb-1">Frontend</div>
-            <div className="text-slate-100">React 18 + Vite</div>
+            <div className="text-slate-400 mb-1">Stack</div>
+            <div className="text-slate-100">FastAPI · React 18 + Vite</div>
           </div>
         </div>
       </div>
@@ -110,24 +119,38 @@ export function Settings() {
   )
 }
 
-function ApiKeyRow({ name, provider }: { name: string; provider: string }) {
+function ApiKeyRow({ name, provider, ok }: { name: string; provider: string; ok?: boolean }) {
   return (
     <div className="flex items-center justify-between py-2 px-3 bg-slate-800/30 rounded-lg">
       <div>
         <div className="font-mono text-xs text-slate-300">{name}</div>
         <div className="text-xs text-slate-500">{provider}</div>
       </div>
-      <CheckCircle2 className="w-4 h-4 text-green-400" />
+      {ok === undefined ? (
+        <span className="text-xs text-slate-500">—</span>
+      ) : ok ? (
+        <CheckCircle2 className="w-4 h-4 text-green-400" />
+      ) : (
+        <XCircle className="w-4 h-4 text-red-400" />
+      )}
     </div>
   )
 }
 
-function IntegrationCard({ name, status }: { name: string; status: 'active' | 'planned' }) {
+function IntegrationCard({ name, data }: { name: string; data?: IntegrationStatus }) {
+  const status = data?.status ?? 'planned'
+  const meta = {
+    active: { label: '● Aktif', cls: 'text-green-400', Icon: CheckCircle2 },
+    needs_config: { label: '○ Yapılandır', cls: 'text-yellow-400', Icon: Clock },
+    planned: { label: '○ Planlı', cls: 'text-slate-500', Icon: Clock },
+  }[status]
+
   return (
     <div className="flex items-center justify-between py-2 px-3 bg-slate-800/30 rounded-lg">
       <span className="text-sm text-slate-300">{name}</span>
-      <span className={`text-xs ${status === 'active' ? 'text-green-400' : 'text-slate-500'}`}>
-        {status === 'active' ? '● Aktif' : '○ Planlı'}
+      <span className={`text-xs flex items-center gap-1 ${meta.cls}`}>
+        <meta.Icon className="w-3.5 h-3.5" />
+        {meta.label}
       </span>
     </div>
   )

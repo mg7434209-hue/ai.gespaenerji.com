@@ -44,6 +44,29 @@ export interface Agent {
   is_active: boolean
 }
 
+export interface IntegrationStatus {
+  configured: boolean
+  status: 'active' | 'needs_config' | 'planned'
+}
+
+export interface SystemStatus {
+  version: string
+  environment: string
+  database: string
+  api_keys: {
+    anthropic: boolean
+    openai: boolean
+    gemini: boolean
+  }
+  integrations: {
+    whatsapp: IntegrationStatus
+    ai_assistant: IntegrationStatus
+    gmail: IntegrationStatus
+    vapi: IntegrationStatus
+    n8n: IntegrationStatus
+  }
+}
+
 export interface WorkspaceStats {
   workspace: string
   leads: {
