@@ -7,37 +7,45 @@ from app.auth.security import hash_password
 from app.config import settings
 
 
-# 12 AI ajanı — Chatpilots tarzı
+# 12 AI ajanı — Mustafa'nın gerçek iş kollarına göre (dijital oda kadrosu)
 DEFAULT_AGENTS = [
     {
         "slug": "satis-uzmani",
         "name": "Satış Uzmanı",
         "department": "Satış",
-        "description": "Müşteri adaylarını ikna eder, satış kapatır.",
+        "description": "Superbox ve fiber müşteri adaylarını arar, ikna eder, satışı kapatır.",
         "icon": "briefcase",
         "color": "#10b981",
     },
     {
+        "slug": "superbox-takipcisi",
+        "name": "Superbox Başvuru Takipçisi",
+        "department": "Superonline",
+        "description": "internetbasvuru.com lead'lerini izler; arama, kapsama teyidi ve kurulum takibini yönetir.",
+        "icon": "wifi",
+        "color": "#fbbf24",
+    },
+    {
         "slug": "teklif-motoru",
-        "name": "Teklif Motoru",
-        "department": "Teklif",
-        "description": "İhtiyacı analiz eder, teklif hazırlar.",
-        "icon": "clipboard-list",
-        "color": "#06b6d4",
+        "name": "Solar Teklif Motoru",
+        "department": "Solar",
+        "description": "Keşif verisinden anahtar teslim GES teklifi ve maliyet analizi hazırlar.",
+        "icon": "sun",
+        "color": "#f59e0b",
     },
     {
         "slug": "destek-uzmani",
         "name": "Destek Uzmanı",
         "department": "Destek",
-        "description": "Sorunları çözer, memnuniyet sağlar.",
+        "description": "Müşteri sorunlarını çözer, memnuniyet takibini yapar.",
         "icon": "wrench",
         "color": "#3b82f6",
     },
     {
         "slug": "tahsilat-sorumlusu",
         "name": "Tahsilat Sorumlusu",
-        "department": "Tahsilat",
-        "description": "Ödeme hatırlatır, tahsilat yapar.",
+        "department": "Finans",
+        "description": "Ödeme hatırlatır, tahsilat ve fatura takibini yapar.",
         "icon": "dollar-sign",
         "color": "#a855f7",
     },
@@ -45,7 +53,7 @@ DEFAULT_AGENTS = [
         "slug": "email-asistani",
         "name": "Email Asistanı",
         "department": "İletişim",
-        "description": "Email yazışmaları ve takibi yapar.",
+        "description": "Email yazışmalarını taslaklar, takip eder, önceliklendirir.",
         "icon": "mail",
         "color": "#6366f1",
     },
@@ -53,58 +61,59 @@ DEFAULT_AGENTS = [
         "slug": "proje-yoneticisi",
         "name": "Proje Yöneticisi",
         "department": "Proje",
-        "description": "Proje takibi ve raporlama yapar.",
+        "description": "GES kurulumları ve site projelerini takip eder, haftalık rapor çıkarır.",
         "icon": "bar-chart-3",
-        "color": "#f59e0b",
-    },
-    {
-        "slug": "saglik-asistani",
-        "name": "Sağlık Asistanı",
-        "department": "Sağlık",
-        "description": "Hasta bilgi toplar, yönlendirir.",
-        "icon": "plus-square",
-        "color": "#ec4899",
-    },
-    {
-        "slug": "egitim-danismani",
-        "name": "Eğitim Danışmanı",
-        "department": "Eğitim",
-        "description": "Kurs bilgisi verir, kayıt alır.",
-        "icon": "graduation-cap",
-        "color": "#14b8a6",
-    },
-    {
-        "slug": "rezervasyon",
-        "name": "Rezervasyon",
-        "department": "Rezervasyon",
-        "description": "Konaklama ve mekan rezervasyonu alır.",
-        "icon": "building",
-        "color": "#0ea5e9",
-    },
-    {
-        "slug": "kargo-takip",
-        "name": "Kargo Takip",
-        "department": "Lojistik",
-        "description": "Kargo durumu sorgular, bildirir.",
-        "icon": "package",
         "color": "#f97316",
     },
     {
-        "slug": "sesli-asistan",
-        "name": "Sesli Asistan",
-        "department": "Ses",
-        "description": "Sesli görüşme ve çağrı yönetimi.",
-        "icon": "mic",
-        "color": "#d946ef",
+        "slug": "hukuk-asistani",
+        "name": "Hukuk & Trafik Asistanı",
+        "department": "Hukuk",
+        "description": "TrafikRehber/CezaRehberi sorularını yanıtlar, dilekçe taslağı hazırlar.",
+        "icon": "scale",
+        "color": "#0ea5e9",
+    },
+    {
+        "slug": "sigorta-asistani",
+        "name": "Sigorta Asistanı",
+        "department": "Sigorta",
+        "description": "Trafik/kasko teklif karşılaştırır (SEGEM sonrası tam aktif).",
+        "icon": "shield-check",
+        "color": "#14b8a6",
+    },
+    {
+        "slug": "tarife-analisti",
+        "name": "Tarife Analisti",
+        "department": "Analiz",
+        "description": "tarifesec.net.tr için operatör tarifelerini ve rakipleri izler.",
+        "icon": "line-chart",
+        "color": "#8b5cf6",
+    },
+    {
+        "slug": "icerik-yazari",
+        "name": "İçerik & SEO Yazarı",
+        "department": "Pazarlama",
+        "description": "Siteler için rehber yazısı, kampanya metni ve SEO içeriği üretir.",
+        "icon": "pen-square",
+        "color": "#ec4899",
     },
     {
         "slug": "genel-asistan",
         "name": "Genel Asistan",
         "department": "Genel",
-        "description": "Her türlü genel görevi üstlenir.",
+        "description": "Gündelik görevler, özetler ve hatırlatmalar.",
         "icon": "bot",
         "color": "#64748b",
     },
+]
+
+# Eski şablondan kalan, iş kollarıyla ilgisi olmayan ajanlar — seed'de silinir
+LEGACY_AGENT_SLUGS = [
+    "saglik-asistani",
+    "egitim-danismani",
+    "rezervasyon",
+    "kargo-takip",
+    "sesli-asistan",
 ]
 
 
@@ -191,12 +200,24 @@ def seed():
                 db.add(Workspace(**ws_data))
                 print(f"✓ Workspace eklendi: {ws_data['slug']}")
 
-        # Agents
+        # Agents — upsert: varsa tanımı güncelle (is_active korunur), yoksa ekle
         for agent_data in DEFAULT_AGENTS:
             existing = db.query(Agent).filter(Agent.slug == agent_data["slug"]).first()
             if not existing:
                 db.add(Agent(**agent_data))
                 print(f"✓ Ajan eklendi: {agent_data['slug']}")
+            else:
+                for field in ("name", "department", "description", "icon", "color"):
+                    setattr(existing, field, agent_data[field])
+
+        # Eski şablon ajanlarını kaldır
+        removed = (
+            db.query(Agent)
+            .filter(Agent.slug.in_(LEGACY_AGENT_SLUGS))
+            .delete(synchronize_session=False)
+        )
+        if removed:
+            print(f"✓ {removed} eski şablon ajanı kaldırıldı")
 
         db.commit()
         print("✓ Seed tamamlandı.")

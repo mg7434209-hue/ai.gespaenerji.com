@@ -1,26 +1,37 @@
 
 import { WhiskyHourCard } from '@/components/WhiskyHourCard'
 import { useEffect, useState } from 'react'
-import { TrendingUp, Users, Target, Zap, ArrowUpRight } from 'lucide-react'
+import { TrendingUp, Users, Target, Zap, ArrowUpRight, ExternalLink, Globe } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import type { Workspace, WorkspaceStats } from '@/types'
+import type { Agent, Workspace, WorkspaceStats } from '@/types'
 import { Link } from 'react-router-dom'
+
+// Dijital odanın dış kapıları — canlı siteler
+const MY_SITES = [
+  { name: 'internetbasvuru.com', desc: 'Turkcell Superbox başvuru', url: 'https://internetbasvuru.com', color: '#2856A5' },
+  { name: 'gespaenerji.com', desc: 'Anahtar teslim GES', url: 'https://gespaenerji.com', color: '#f59e0b' },
+  { name: 'gesmarketim.com', desc: 'Solar e-ticaret', url: 'https://gesmarketim.com', color: '#10b981' },
+  { name: 'tarifesec.net.tr', desc: 'Tarife karşılaştırma', url: 'https://tarifesec.net.tr', color: '#8b5cf6' },
+]
 
 export function Dashboard() {
   const { user } = useAuth()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       try {
-        const [wsRes, statsRes] = await Promise.all([
+        const [wsRes, agentsRes, statsRes] = await Promise.all([
           api.get<Workspace[]>('/workspaces'),
+          api.get<Agent[]>('/agents').catch(() => null),
           api.get<WorkspaceStats>('/workspaces/superonline/stats').catch(() => null),
         ])
         setWorkspaces(wsRes.data)
+        if (agentsRes) setAgents(agentsRes.data)
         if (statsRes) setStats(statsRes.data)
       } finally {
         setLoading(false)
@@ -28,6 +39,14 @@ export function Dashboard() {
     }
     load()
   }, [])
+
+  const activeAgents = agents.filter((a) => a.is_active).length
+  const today = new Date().toLocaleDateString('tr-TR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 
   const greeting = (() => {
     const h = new Date().getHours()
@@ -45,7 +64,8 @@ export function Dashboard() {
           {greeting}, {user?.full_name?.split(' ')[0] || 'Mustafa'} 👋
         </h1>
         <p className="text-slate-400 mt-1">
-          Bugün {workspaces.length} workspace ve 12 AI ajanı ile çalışıyorsun.
+          {today} · {workspaces.length} workspace ·{' '}
+          {agents.length ? `${activeAgents}/${agents.length} ajan görevde` : 'ajanlar yükleniyor'}
         </p>
       </div>
 
@@ -116,6 +136,36 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Sitelerim — dijital odanın dış kapıları */}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">
+          Sitelerim
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {MY_SITES.map((site) => (
+            <a
+              key={site.url}
+              href={site.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card hover:border-slate-700 transition-colors group"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${site.color}20`, color: site.color }}
+                >
+                  <Globe className="w-4 h-4" />
+                </div>
+                <ExternalLink className="w-4 h-4 text-slate-600 group-hover:text-brand-400 transition-colors" />
+              </div>
+              <div className="font-semibold text-slate-100 text-sm mb-0.5">{site.name}</div>
+              <div className="text-xs text-slate-400">{site.desc}</div>
+            </a>
+          ))}
+        </div>
+      </div>
+
       {/* Quick actions */}
       <div>
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">
@@ -127,8 +177,8 @@ export function Dashboard() {
             <div className="text-sm text-slate-400">Superonline için lead kaydet</div>
           </Link>
           <Link to="/agents" className="card hover:border-brand-500/50 transition-colors">
-            <div className="font-semibold text-slate-100 mb-1">AI Ajanları</div>
-            <div className="text-sm text-slate-400">12 departmanı yönet</div>
+            <div className="font-semibold text-slate-100 mb-1">Dijital Ofisim</div>
+            <div className="text-sm text-slate-400">AI ekibini yönet</div>
           </Link>
           <Link to="/settings" className="card hover:border-brand-500/50 transition-colors">
             <div className="font-semibold text-slate-100 mb-1">API Anahtarları</div>
