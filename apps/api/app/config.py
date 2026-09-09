@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     legal_model: str = "claude-opus-5"
     # Belge triyajı (hangi ajana gidecek) — boşsa legal_model kullanılır
     legal_triage_model: str = ""
+    # İkinci okuma / denetim modeli — boşsa legal_model kullanılır
+    legal_review_model: str = ""
 
     # WhatsApp Business API (Meta Cloud)
     whatsapp_access_token: str = ""

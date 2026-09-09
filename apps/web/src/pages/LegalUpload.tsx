@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Sparkles,
@@ -18,12 +18,15 @@ import { api } from '@/lib/api'
 import { legalIcon } from '@/lib/legalIcons'
 import { LegalUploader } from '@/components/LegalUploader'
 import { ResultPanel } from '@/components/LegalResult'
-import type { LegalAgent, LegalAnalyzeResponse, LegalDocument, LegalMeta } from '@/types'
+import type { LegalAgent, LegalAnalyzeResponse, LegalDocument, LegalMatter, LegalMeta } from '@/types'
 
 type Phase = 'idle' | 'triage' | 'analyze'
 
 export function LegalUpload() {
+  const [params] = useSearchParams()
   const [docs, setDocs] = useState<LegalDocument[]>([])
+  const [matters, setMatters] = useState<LegalMatter[]>([])
+  const [matterId, setMatterId] = useState(params.get('dosya') || '')
   const [note, setNote] = useState('')
   const [agentSlug, setAgentSlug] = useState('')     // boş = sistem seçsin
   const [agents, setAgents] = useState<LegalAgent[]>([])
@@ -36,6 +39,7 @@ export function LegalUpload() {
   useEffect(() => {
     api.get<LegalAgent[]>('/legal/agents').then(({ data }) => setAgents(data))
     api.get<LegalMeta>('/legal/meta').then(({ data }) => setMeta(data))
+    api.get<LegalMatter[]>('/legal/matters').then(({ data }) => setMatters(data))
   }, [])
 
   async function analyze() {
@@ -53,6 +57,7 @@ export function LegalUpload() {
         document_ids: docs.map((d) => d.id),
         agent_slug: agentSlug || null,
         note: note.trim(),
+        matter_id: matterId ? Number(matterId) : null,
       })
       setOut(data)
       if (data.consultation.status === 'error') {
@@ -117,6 +122,22 @@ export function LegalUpload() {
               placeholder="Örn. itiraz edersem masrafı ne olur?"
               className="input"
             />
+          </div>
+          <div>
+            <label className="label" htmlFor="upload-matter">
+              Dosyaya bağla <span className="text-slate-600">(opsiyonel)</span>
+            </label>
+            <select
+              id="upload-matter"
+              value={matterId}
+              onChange={(e) => setMatterId(e.target.value)}
+              className="input"
+            >
+              <option value="">Bağımsız</option>
+              {matters.map((m) => (
+                <option key={m.id} value={m.id}>{m.title}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="label" htmlFor="upload-agent">

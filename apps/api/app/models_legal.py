@@ -3,11 +3,11 @@
 models.py'daki genel Agent tablosundan ayrı tutuluyor: avukat ajanlarının
 uzmanlık alanı, ürettiği belge tipleri ve dosya/danışma geçmişi var.
 """
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 from sqlalchemy import (
-    String, Integer, DateTime, ForeignKey, Text, Boolean, JSON, Float, LargeBinary,
+    String, Integer, DateTime, Date, ForeignKey, Text, Boolean, JSON, Float, LargeBinary,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,19 +46,35 @@ class LegalAgent(Base):
 
 
 class LegalMatter(Base):
-    """Hukuk dosyası — birden çok danışmayı tek konu altında toplar."""
+    """Hukuk dosyası — bir uyuşmazlığın tüm belgeleri, danışmaları ve süreleri.
+
+    Ofisin hafızası burada: bir dosyaya bağlı danışmada ajan, aynı dosyadaki
+    önceki görüşleri ve belge künyelerini bağlam olarak görür.
+    """
     __tablename__ = "legal_matters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    counterparty: Mapped[Optional[str]] = mapped_column(String(255))  # karşı taraf
-    reference: Mapped[Optional[str]] = mapped_column(String(128))     # esas no / dosya no
+    area: Mapped[Optional[str]] = mapped_column(String(64))            # hukuk alanı (departman)
+    self_party: Mapped[Optional[str]] = mapped_column(String(255))     # bizim taraf
+    counterparty: Mapped[Optional[str]] = mapped_column(String(255))   # karşı taraf
+    role: Mapped[Optional[str]] = mapped_column(String(32))            # davacı | davalı | alacaklı | borçlu | şikayetçi | şüpheli
+    court: Mapped[Optional[str]] = mapped_column(String(255))          # mahkeme / icra dairesi
+    reference: Mapped[Optional[str]] = mapped_column(String(128))      # esas no / dosya no
+    stage: Mapped[str] = mapped_column(String(48), default="inceleme") # inceleme, ihtar, arabuluculuk, dava, icra, istinaf, karar, kapandı
     status: Mapped[str] = mapped_column(String(32), default="open", index=True)  # open, waiting, closed
+    amount: Mapped[Optional[str]] = mapped_column(String(64))          # uyuşmazlık değeri (serbest metin)
+    next_hearing: Mapped[Optional[date]] = mapped_column(Date)
+    summary: Mapped[Optional[str]] = mapped_column(Text)               # dosyanın özeti (ajan bağlamı)
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     consultations: Mapped[list["LegalConsultation"]] = relationship(
+        back_populates="matter",
+        cascade="all, delete-orphan",
+    )
+    deadlines: Mapped[list["LegalDeadline"]] = relationship(
         back_populates="matter",
         cascade="all, delete-orphan",
     )
@@ -101,6 +117,16 @@ class LegalConsultation(Base):
 
     agent: Mapped["LegalAgent"] = relationship(back_populates="consultations")
     matter: Mapped[Optional["LegalMatter"]] = relationship(back_populates="consultations")
+    messages: Mapped[list["LegalMessage"]] = relationship(
+        back_populates="consultation",
+        cascade="all, delete-orphan",
+        order_by="LegalMessage.created_at",
+    )
+    reviews: Mapped[list["LegalReview"]] = relationship(
+        back_populates="consultation",
+        cascade="all, delete-orphan",
+        order_by="LegalReview.created_at",
+    )
 
 
 class LegalDocument(Base):
@@ -125,3 +151,64 @@ class LegalDocument(Base):
 
     matter_id: Mapped[Optional[int]] = mapped_column(ForeignKey("legal_matters.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class LegalMessage(Base):
+    """Danışma üzerindeki devam sohbeti — avukatla konuşma sürer."""
+    __tablename__ = "legal_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    consultation_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_consultations.id"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(16))    # user | assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    document_ids: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    model: Mapped[Optional[str]] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    consultation: Mapped["LegalConsultation"] = relationship(back_populates="messages")
+
+
+class LegalDeadline(Base):
+    """Süre kaydı — hak düşürücü süreler takvime yazılır ve geri sayar."""
+    __tablename__ = "legal_deadlines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    matter_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("legal_matters.id"), nullable=True, index=True
+    )
+    consultation_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("legal_consultations.id"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    basis: Mapped[Optional[str]] = mapped_column(String(255))   # "tebliğden itibaren 7 gün"
+    start_date: Mapped[Optional[date]] = mapped_column(Date)    # sürenin başladığı gün
+    critical: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | done | missed
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(32), default="manual")  # manual | analiz | triyaj
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    matter: Mapped[Optional["LegalMatter"]] = relationship(back_populates="deadlines")
+
+
+class LegalReview(Base):
+    """İkinci okuma — Hukuk Denetçisi'nin bir çıktı üzerindeki bulguları."""
+    __tablename__ = "legal_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    consultation_id: Mapped[int] = mapped_column(
+        ForeignKey("legal_consultations.id"), nullable=False, index=True
+    )
+    verdict: Mapped[str] = mapped_column(String(32), default="inceleniyor")
+    # temiz | duzeltme_gerekli | riskli | hata
+    score: Mapped[float] = mapped_column(Float, default=0.0)
+    findings: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    summary: Mapped[Optional[str]] = mapped_column(Text)
+    model: Mapped[Optional[str]] = mapped_column(String(64))
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    consultation: Mapped["LegalConsultation"] = relationship(back_populates="reviews")

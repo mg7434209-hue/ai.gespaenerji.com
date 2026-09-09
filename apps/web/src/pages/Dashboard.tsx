@@ -1,10 +1,11 @@
 
 import { WhiskyHourCard } from '@/components/WhiskyHourCard'
 import { useEffect, useState } from 'react'
-import { TrendingUp, Users, Target, Zap, ArrowUpRight, ExternalLink, Globe } from 'lucide-react'
+import { TrendingUp, Users, Target, Zap, ArrowUpRight, ExternalLink, Globe, Scale, AlertTriangle, CalendarClock } from 'lucide-react'
+import clsx from 'clsx'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import type { Agent, Workspace, WorkspaceStats } from '@/types'
+import type { Agent, LegalAgenda, Workspace, WorkspaceStats } from '@/types'
 import { Link } from 'react-router-dom'
 
 // Dijital odanın dış kapıları — canlı siteler
@@ -20,19 +21,22 @@ export function Dashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [agents, setAgents] = useState<Agent[]>([])
   const [stats, setStats] = useState<WorkspaceStats | null>(null)
+  const [agenda, setAgenda] = useState<LegalAgenda | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       try {
-        const [wsRes, agentsRes, statsRes] = await Promise.all([
+        const [wsRes, agentsRes, statsRes, agendaRes] = await Promise.all([
           api.get<Workspace[]>('/workspaces'),
           api.get<Agent[]>('/agents').catch(() => null),
           api.get<WorkspaceStats>('/workspaces/superonline/stats').catch(() => null),
+          api.get<LegalAgenda>('/legal/agenda', { params: { days: 30 } }).catch(() => null),
         ])
         setWorkspaces(wsRes.data)
         if (agentsRes) setAgents(agentsRes.data)
         if (statsRes) setStats(statsRes.data)
+        if (agendaRes) setAgenda(agendaRes.data)
       } finally {
         setLoading(false)
       }
@@ -68,6 +72,9 @@ export function Dashboard() {
           {agents.length ? `${activeAgents}/${agents.length} ajan görevde` : 'ajanlar yükleniyor'}
         </p>
       </div>
+
+      {/* Hukuki süreler — kaçırılırsa hak kaybı olur, en üstte durur */}
+      {agenda && agenda.deadlines.length > 0 && <LegalAgendaCard agenda={agenda} />}
 
       {/* KPI Cards — Superonline */}
       <div>
@@ -220,6 +227,70 @@ function KpiCard({
         </div>
       </div>
       <div className="text-2xl font-bold text-slate-100">{value}</div>
+    </div>
+  )
+}
+
+
+/** Yaklaşan hukuki süreler — Hukuk Ofisi takviminden. */
+function LegalAgendaCard({ agenda }: { agenda: LegalAgenda }) {
+  const urgent = agenda.deadlines.filter((d) => d.days_left <= 7)
+  const alarm = agenda.overdue > 0
+  return (
+    <div
+      className={clsx(
+        'card border',
+        alarm ? 'border-red-500/40 bg-red-500/5' : urgent.length ? 'border-amber-500/30' : '',
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          {alarm ? (
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+          ) : (
+            <Scale className="w-5 h-5 text-brand-400" />
+          )}
+          <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wide">
+            {alarm ? `${agenda.overdue} süre geçti — hemen bak` : 'Yaklaşan hukuki süreler'}
+          </h2>
+        </div>
+        <Link to="/hukuk/sureler" className="text-xs font-semibold text-brand-400 hover:text-brand-300">
+          Tümünü gör →
+        </Link>
+      </div>
+
+      <ul className="space-y-2">
+        {agenda.deadlines.slice(0, 5).map((d) => (
+          <li key={d.id} className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm text-slate-100 truncate">{d.title}</div>
+              <div className="text-xs text-slate-500 truncate">
+                {d.matter_title || 'Bağımsız'} · {d.due_date}
+              </div>
+            </div>
+            <span
+              className={clsx(
+                'text-xs font-semibold px-2.5 py-1 rounded-full shrink-0',
+                d.days_left < 0
+                  ? 'bg-red-500/10 text-red-400'
+                  : d.days_left <= 7
+                    ? 'bg-amber-500/10 text-amber-400'
+                    : 'bg-slate-800 text-slate-300',
+              )}
+            >
+              {d.days_left < 0 ? `${Math.abs(d.days_left)} gün geçti` : `${d.days_left} gün`}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {agenda.hearings.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-slate-800 flex items-center gap-2 text-xs text-slate-400">
+          <CalendarClock className="w-3.5 h-3.5" />
+          Sıradaki duruşma: {agenda.hearings[0].title} — {agenda.hearings[0].date}
+          <span className="text-slate-600">({agenda.hearings[0].days_left} gün)</span>
+        </div>
+      )}
     </div>
   )
 }

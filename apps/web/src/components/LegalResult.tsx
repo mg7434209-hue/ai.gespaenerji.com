@@ -14,14 +14,23 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import clsx from 'clsx'
-import type { LegalConsultation } from '@/types'
+import type { LegalConsultation, LegalReview } from '@/types'
+import { LegalActions, LegalChat } from './LegalActions'
 
 // ─────────────────────────────────────────────────────────────
 // Danışma sonucu paneli — hem ajan sayfası hem belge analizi kullanır
 // ─────────────────────────────────────────────────────────────
 
 
-export function ResultPanel({ consultation }: { consultation: LegalConsultation }) {
+export function ResultPanel({
+  consultation,
+  showActions = true,
+  onReview,
+}: {
+  consultation: LegalConsultation
+  showActions?: boolean
+  onReview?: (r: LegalReview) => void
+}) {
   const r = consultation.result
   if (consultation.status === 'error' || !r) {
     return (
@@ -227,6 +236,14 @@ export function ResultPanel({ consultation }: { consultation: LegalConsultation 
         <AlertTriangle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
         <p className="text-xs text-slate-500 leading-relaxed">{r.uyari}</p>
       </div>
+
+      {/* İndir · denetle · süreleri yaz · konuş */}
+      {showActions && (
+        <>
+          <LegalActions consultation={consultation} onReview={onReview} />
+          <LegalChat consultationId={consultation.id} agentName={consultation.agent_name} />
+        </>
+      )}
     </div>
   )
 }

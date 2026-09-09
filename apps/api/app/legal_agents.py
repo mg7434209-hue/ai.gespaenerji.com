@@ -13,6 +13,7 @@ MODES = {
     "dilekce": "Dilekçe / ihtarname / başvuru taslağı",
     "inceleme": "Mevcut belge veya sözleşmenin incelenmesi",
     "arastirma": "Mevzuat ve içtihat araştırması",
+    "kurul": "Hukuk kurulu ortak görüşü",
 }
 
 # Ofisin ortak zemini — tüm ajanlar bunu paylaşır
@@ -78,6 +79,8 @@ MODE_PROMPTS = {
                 "değişik metni `belge.icerik` içinde 'Önerilen tadil' başlığıyla ver.",
     "arastirma": "Bu bir MEVZUAT ARAŞTIRMASI talebidir. `mevzuat` alanını genişçe doldur; "
                  "emin olmadığın her maddeye teyit=true koy. `belge` null kalsın.",
+    "kurul": "Bu bir KURUL GÖRÜŞÜDÜR. Kendi uzmanlık alanından bakıp görüşünü ver; "
+             "başka alanları ilgilendiren kısımları `sonraki_ajan` ile işaretle.",
 }
 
 
@@ -706,3 +709,205 @@ DISCLAIMER = (
     "Avukatlık Kanunu uyarınca hukuki danışmanlık yalnızca avukatlar tarafından verilebilir. "
     "İşlem yapmadan, dilekçe sunmadan veya süre kaçırmadan önce bir avukata danışın."
 )
+
+
+# ─────────────────────────────────────────────────────────────
+# Hukuk Denetçisi — üretilen her çıktının ikinci okuması
+# ─────────────────────────────────────────────────────────────
+REVIEWER_PROMPT = """Sen Gespa OS Hukuk Ofisi'nin kıdemli denetçisisin. Görevin bir avukat
+ajanının ürettiği çıktıyı ACIMASIZCA denetlemek. Sen çıktıyı yeniden yazmazsın; HATA ARARSIN.
+
+## Neye bakarsın
+1. **Uydurma**: var olmayan kanun maddesi, uydurma Yargıtay kararı, olmayan kurum adı,
+   belgede geçmeyen tutar/tarih/isim. En ağır bulgu budur.
+2. **Süre hatası**: yanlış süre, yanlış başlangıç anı, atlanmış hak düşürücü süre.
+3. **Yanlış merci**: görevli/yetkili mahkeme, başvurulacak makam yanlışsa.
+4. **Eksik seçenek**: kullanıcının kaybettiği bir hak yolu (itiraz, uzlaşma, arabuluculuk,
+   menfi tespit, istinaf) hiç anlatılmamışsa.
+5. **Aşırı güven**: "kesin kazanırsınız" tonundaki, riski gizleyen ifadeler.
+6. **Dilekçe kusuru**: taraf/merci başlığı eksik, netice-i talep belirsiz veya icra edilemez,
+   doldurulmamış alan köşeli parantezle işaretlenmemiş.
+7. **İç tutarsızlık**: özet ile adımların, süre ile riskin çelişmesi.
+
+## Kurallar
+- Bulgu yoksa uydurma; `bulgular` boş dizi olabilir ve karar "temiz" olur.
+- Her bulguda somut ol: hangi alanda, ne yanlış, ne yazılmalı.
+- Emin olamadığın madde numaralarını "doğrulanmalı" olarak işaretle; kendin de numara uydurma.
+
+## Çıktı (KESİNLİKLE bu JSON, başka metin yok)
+{
+  "karar": "temiz|duzeltme_gerekli|riskli",
+  "puan": 0.0,
+  "ozet": "Denetimin 1-2 cümlelik sonucu",
+  "bulgular": [
+    {"tur": "uydurma|sure|merci|eksik|asiri_guven|dilekce|tutarsizlik",
+     "agirlik": "dusuk|orta|yuksek",
+     "alan": "Çıktının hangi kısmı",
+     "sorun": "Ne yanlış",
+     "duzeltme": "Ne yazılmalı"}
+  ],
+  "dogrulanmasi_gerekenler": ["Kullanıcının resmî kaynaktan teyit etmesi gereken bilgi"]
+}
+`puan`: 1.0 kusursuz, 0.0 kullanılamaz. "riskli" kararı yalnızca uydurma veya süre hatası
+varsa verilir."""
+
+
+# ─────────────────────────────────────────────────────────────
+# Kurul sentezi — birden çok ajanın görüşünü Baş Müşavir birleştirir
+# ─────────────────────────────────────────────────────────────
+BOARD_PROMPT = """Sen Gespa OS Hukuk Ofisi'nin Baş Hukuk Müşavirisin ve kurul toplantısını
+yönetiyorsun. Aşağıda aynı olaya farklı uzmanlık alanlarından bakan ajanların görüşleri var.
+Bunları TEK bir karara bağlarsın.
+
+## Nasıl birleştirirsin
+- Ortak noktaları tek cümlede topla; ÇELİŞEN görüşleri gizleme, `degerlendirme` içinde
+  "Kurulda görüş ayrılığı" başlığıyla açıkça yaz ve hangisini neden önerdiğini söyle.
+- Süreleri tüm görüşlerden topla, en kısa ve en kritik olanı en üste koy.
+- Adımları tek bir sıralı yol haritasına indir; aynı işi iki kez yazma.
+- Riskleri birleştir, en yüksek seviyeyi koru.
+- Hiçbir uzmanın değinmediği ama açıkça gereken bir adım varsa ekle ve bunu belirt.
+
+Çıktı formatı, avukat ajanlarınkiyle AYNI JSON şemasıdır. `ozet` alanında kurulun kararını
+tek cümlede söyle. Uydurma yasağı ve süre kuralları aynen geçerlidir."""
+
+
+# ─────────────────────────────────────────────────────────────
+# Devam sohbeti — danışmanın üstüne konuşma
+# ─────────────────────────────────────────────────────────────
+CHAT_RULES = """
+## Bu bir DEVAM SOHBETİDİR
+Yukarıdaki dosya üzerinde kullanıcıyla konuşuyorsun. Bu sefer JSON DEĞİL, düz Türkçe yaz.
+- Kısa ve net ol (kural olarak 4-8 cümle); soruyu doğrudan yanıtla.
+- Gerekiyorsa maddelendir; dilekçe metni istenirse metni doğrudan yaz.
+- Uydurma yasağı, süre uyarısı ve "avukat kontrolü şart" kuralı burada da geçerlidir.
+- Süreyle ilgili bir şey söylüyorsan cümlenin başında **Süre:** diye vurgula.
+- Bilmediğini "bilmiyorum, şu belgeyi görmem gerekir" diye söyle; doldurma."""
+
+
+# ─────────────────────────────────────────────────────────────
+# Dilekçe şablon kütüphanesi — tek tıkla belge üretimi
+# ─────────────────────────────────────────────────────────────
+TEMPLATES = [
+    {
+        "id": "ihtarname-alacak",
+        "name": "Alacak İhtarnamesi",
+        "agent": "alacak-tahsilat-avukati",
+        "category": "Alacak",
+        "description": "Ödemeyen müşteriyi temerrüde düşüren, faiz başlangıcını kuran noter ihtarnamesi.",
+        "fields": ["Karşı taraf unvanı", "Alacak tutarı", "Fatura/sözleşme no ve tarihi", "Verilen süre (gün)"],
+    },
+    {
+        "id": "odeme-emri-itiraz",
+        "name": "Ödeme Emrine İtiraz",
+        "agent": "icra-avukati",
+        "category": "İcra",
+        "description": "İcra dairesine sunulan itiraz dilekçesi — borca, faize ve yetkiye itiraz.",
+        "fields": ["İcra dairesi ve dosya no", "Tebliğ tarihi", "İtiraz sebebi", "Borcun tamamına mı kısmına mı"],
+    },
+    {
+        "id": "trafik-ceza-itiraz",
+        "name": "Trafik Cezasına İtiraz",
+        "agent": "trafik-idari-ceza-avukati",
+        "category": "İdari Ceza",
+        "description": "Sulh ceza hâkimliğine başvuru — tutanak hatası, tebligat usulsüzlüğü, ölçüm itirazı.",
+        "fields": ["Tutanak no ve tarihi", "Tebliğ tarihi", "Plaka", "İtiraz gerekçesi"],
+    },
+    {
+        "id": "kira-tahliye-ihtar",
+        "name": "Kira Tahliye İhtarnamesi",
+        "agent": "gayrimenkul-avukati",
+        "category": "Kira",
+        "description": "Ödenmeyen kira için ihtar veya sözleşme sonu tahliye bildirimi.",
+        "fields": ["Kiracı adı", "Taşınmaz adresi", "Sözleşme tarihi", "Ödenmeyen dönemler"],
+    },
+    {
+        "id": "is-fesih-bildirimi",
+        "name": "İş Sözleşmesi Fesih Bildirimi",
+        "agent": "is-hukuku-avukati",
+        "category": "İş Hukuku",
+        "description": "İşveren tarafında usulüne uygun, gerekçeli yazılı fesih bildirimi.",
+        "fields": ["Çalışan adı", "İşe giriş tarihi", "Fesih sebebi", "Savunma alındı mı"],
+    },
+    {
+        "id": "isci-savunma-istemi",
+        "name": "Savunma İstem Yazısı",
+        "agent": "is-hukuku-avukati",
+        "category": "İş Hukuku",
+        "description": "Fesihten önce çalışandan yazılı savunma isteme yazısı.",
+        "fields": ["Çalışan adı", "İddia edilen davranış", "Olay tarihi", "Savunma süresi"],
+    },
+    {
+        "id": "tuketici-hakem-basvuru",
+        "name": "Tüketici Hakem Heyeti Başvurusu",
+        "agent": "tuketici-avukati",
+        "category": "Tüketici",
+        "description": "Ayıplı mal/hizmet için hakem heyetine başvuru dilekçesi.",
+        "fields": ["Satıcı/sağlayıcı", "Ürün ve alım tarihi", "Ayıp/şikâyet", "Talep (iade/değişim/onarım)"],
+    },
+    {
+        "id": "suc-duyurusu",
+        "name": "Suç Duyurusu (Şikâyet Dilekçesi)",
+        "agent": "ceza-avukati",
+        "category": "Ceza",
+        "description": "Cumhuriyet Başsavcılığı'na şikâyet — olay, deliller ve talep.",
+        "fields": ["Şüpheli bilgisi", "Olay tarihi ve yeri", "Anlatım", "Deliller"],
+    },
+    {
+        "id": "vergi-uzlasma-talebi",
+        "name": "Vergi Uzlaşma Talebi",
+        "agent": "vergi-avukati",
+        "category": "Vergi",
+        "description": "İhbarnameye karşı uzlaşma başvurusu dilekçesi.",
+        "fields": ["Vergi dairesi", "İhbarname no ve tebliğ tarihi", "Vergi türü ve dönemi", "Tutar"],
+    },
+    {
+        "id": "idari-basvuru",
+        "name": "İdareye Başvuru Dilekçesi",
+        "agent": "idare-avukati",
+        "category": "İdare",
+        "description": "Dava öncesi idareye başvuru — ruhsat, imar, kamulaştırma konularında.",
+        "fields": ["Başvurulan idare", "Konu", "İşlem/karar no ve tarihi", "Talep"],
+    },
+    {
+        "id": "ges-ret-itiraz",
+        "name": "GES Bağlantı Reddine İtiraz",
+        "agent": "enerji-mevzuat-avukati",
+        "category": "Enerji",
+        "description": "Dağıtım şirketinin lisanssız üretim ret kararına itiraz dilekçesi.",
+        "fields": ["Dağıtım şirketi", "Başvuru ve ret tarihi", "Tesis gücü (kWp)", "Ret gerekçesi"],
+    },
+    {
+        "id": "sozlesme-fesih-ihbari",
+        "name": "Sözleşme Fesih İhbarı",
+        "agent": "sozlesme-avukati",
+        "category": "Sözleşme",
+        "description": "Haklı sebeple veya süre sonunda fesih ihbarı; cezai şart ve tasfiye maddeleriyle.",
+        "fields": ["Sözleşme tarihi ve konusu", "Karşı taraf", "Fesih sebebi", "Talep edilenler"],
+    },
+    {
+        "id": "kvkk-aydinlatma",
+        "name": "KVKK Aydınlatma Metni",
+        "agent": "kvkk-bilisim-avukati",
+        "category": "KVKK",
+        "description": "Web sitesi / form için aydınlatma metni.",
+        "fields": ["Veri sorumlusu unvanı", "Toplanan veriler", "İşleme amaçları", "Saklama süresi"],
+    },
+    {
+        "id": "ihale-fesih",
+        "name": "İhalenin Feshi Dilekçesi",
+        "agent": "ihale-avukati",
+        "category": "İhale",
+        "description": "İcra ihalesinin feshi istemi — usul ve ilan hatalarına dayalı.",
+        "fields": ["İcra dairesi ve dosya no", "İhale tarihi", "Taşınmaz bilgisi", "Fesih sebebi"],
+    },
+    {
+        "id": "arabuluculuk-basvuru",
+        "name": "Arabuluculuk Başvuru Formu",
+        "agent": "dava-stratejisti",
+        "category": "Uyuşmazlık",
+        "description": "Dava şartı arabuluculuk için başvuru metni ve uyuşmazlık özeti.",
+        "fields": ["Karşı taraf", "Uyuşmazlık konusu", "Talep tutarı", "Ekler"],
+    },
+]
+
+TEMPLATE_MAP = {t["id"]: t for t in TEMPLATES}

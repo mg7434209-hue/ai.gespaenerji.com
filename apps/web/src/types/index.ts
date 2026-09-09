@@ -122,6 +122,8 @@ export interface LegalConsultation {
   matter_id: number | null
   document_ids: number[]
   triage: LegalTriage | null
+  message_count: number
+  review: LegalReview | null
   created_at: string
 }
 
@@ -132,6 +134,9 @@ export interface LegalStats {
   drafts: number
   open_matters: number
   documents: number
+  open_deadlines: number
+  overdue_deadlines: number
+  templates: number
   ai_configured: boolean
 }
 
@@ -172,4 +177,113 @@ export interface LegalAnalyzeResponse {
   auto_routed: boolean
   consultation: LegalConsultation
   documents: LegalDocument[]
+}
+
+
+// ── Dosya, süre, sohbet, denetim, kurul ───────────────────────
+
+export interface LegalMatter {
+  id: number
+  title: string
+  area: string | null
+  self_party: string | null
+  counterparty: string | null
+  role: string | null
+  court: string | null
+  reference: string | null
+  stage: string
+  status: string
+  amount: string | null
+  next_hearing: string | null
+  summary: string | null
+  notes: string | null
+  consultation_count: number
+  document_count: number
+  open_deadlines: number
+  next_deadline: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LegalDeadline {
+  id: number
+  title: string
+  due_date: string
+  days_left: number
+  matter_id: number | null
+  matter_title: string | null
+  consultation_id: number | null
+  basis: string | null
+  start_date: string | null
+  critical: boolean
+  status: 'open' | 'done' | 'missed'
+  notes: string | null
+  source: string
+  created_at: string
+}
+
+export interface LegalMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  document_ids: number[]
+  created_at: string
+}
+
+export interface LegalReviewFinding {
+  tur?: string
+  agirlik?: 'dusuk' | 'orta' | 'yuksek'
+  alan?: string
+  sorun?: string
+  duzeltme?: string
+}
+
+export interface LegalReview {
+  id: number
+  consultation_id: number
+  verdict: 'temiz' | 'duzeltme_gerekli' | 'riskli' | 'hata' | string
+  score: number
+  findings: LegalReviewFinding[]
+  summary: string | null
+  model: string | null
+  error: string | null
+  created_at: string
+}
+
+export interface LegalTemplate {
+  id: string
+  name: string
+  agent: string
+  category: string
+  description: string
+  fields: string[]
+}
+
+export interface LegalBoardOpinion {
+  slug: string
+  name: string
+  title: string
+  icon: string | null
+  color: string | null
+  ok: boolean
+  error: string | null
+  result: LegalResult | null
+}
+
+export interface LegalBoardResponse {
+  consultation: LegalConsultation
+  opinions: LegalBoardOpinion[]
+}
+
+export interface LegalAgenda {
+  deadlines: LegalDeadline[]
+  overdue: number
+  critical: number
+  hearings: {
+    matter_id: number
+    title: string
+    court: string | null
+    date: string
+    days_left: number
+  }[]
 }

@@ -13,11 +13,12 @@ import {
   Inbox,
   ScanSearch,
   Sparkles,
-  FileStack,
+  CalendarClock,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/lib/api'
 import { legalIcon, MODE_LABELS } from '@/lib/legalIcons'
+import { LegalNav } from '@/components/LegalNav'
 import type { LegalAgent, LegalConsultation, LegalMeta, LegalStats } from '@/types'
 
 type Tab = 'kadro' | 'gecmis'
@@ -105,6 +106,8 @@ export function Legal() {
 
   return (
     <div className="space-y-6">
+      <LegalNav />
+
       {/* Başlık */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -184,7 +187,12 @@ export function Legal() {
         <Summary icon={Zap} label="Görevde" value={stats?.agents_active ?? 0} tone="text-green-400 bg-green-500/10" />
         <Summary icon={MessageSquareQuote} label="Danışma" value={stats?.consultations ?? 0} tone="text-brand-400 bg-brand-500/10" />
         <Summary icon={FileCheck2} label="Belge Taslağı" value={stats?.drafts ?? 0} tone="text-blue-400 bg-blue-500/10" />
-        <Summary icon={FileStack} label="Yüklü Belge" value={stats?.documents ?? 0} tone="text-purple-400 bg-purple-500/10" />
+        <Summary
+          icon={CalendarClock}
+          label={stats?.overdue_deadlines ? 'Geçmiş süre!' : 'Açık süre'}
+          value={stats?.overdue_deadlines || stats?.open_deadlines || 0}
+          tone={stats?.overdue_deadlines ? 'text-red-400 bg-red-500/10' : 'text-purple-400 bg-purple-500/10'}
+        />
       </div>
 
       {loading ? (

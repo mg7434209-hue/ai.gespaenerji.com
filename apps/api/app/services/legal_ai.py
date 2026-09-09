@@ -12,7 +12,16 @@ from typing import Optional
 from anthropic import Anthropic
 
 from app.config import settings
-from app.legal_agents import DISCLAIMER, LEGAL_AGENTS, MODES, build_system_prompt
+from app.legal_agents import (
+    BOARD_PROMPT,
+    OUTPUT_CONTRACT,
+    CHAT_RULES,
+    DISCLAIMER,
+    LEGAL_AGENTS,
+    MODES,
+    REVIEWER_PROMPT,
+    build_system_prompt,
+)
 from app.services.document_text import MAX_PROMPT_CHARS
 
 
@@ -122,7 +131,7 @@ class LegalAI:
             "Ekteki belgeyi oku ve triyaj çıktısını üret."
             + (f"\n\nKullanıcı notu: {note.strip()}" if note and note.strip() else "")
         )
-        content = self._build_content("inceleme", question, None, None, None, attachments)
+        content = self._build_content("inceleme", question, None, None, None, attachments, None)
 
         try:
             response = self.client.messages.create(
@@ -174,6 +183,7 @@ class LegalAI:
         subject: Optional[str] = None,
         model: Optional[str] = None,
         attachments: Optional[list] = None,
+        matter_context: Optional[str] = None,
     ) -> dict:
         """Ajanı çalıştırır.
 
@@ -199,7 +209,7 @@ class LegalAI:
         use_model = model or agent.get("model") or self.default_model()
         system_prompt = build_system_prompt(agent, mode)
         user_content = self._build_content(
-            mode, question, context, doc_type, subject, attachments or []
+            mode, question, context, doc_type, subject, attachments or [], matter_context
         )
 
         try:
@@ -233,6 +243,185 @@ class LegalAI:
 
     # ── yardımcılar ────────────────────────────────────────────
 
+
+    # ── Devam sohbeti ──────────────────────────────────────────
+
+    def chat(
+        self,
+        agent: dict,
+        base: dict,
+        history: list,
+        question: str,
+        attachments: Optional[list] = None,
+        matter_context: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> dict:
+        """Danışmanın üstüne devam sohbeti — düz metin cevap döner.
+
+        base: ilk danışmanın {subject, question, result} özeti; ajanın kendi
+        görüşünü hatırlaması için ilk turu olarak gönderilir.
+        """
+        if not self.is_configured():
+            return {
+                "ok": False,
+                "reply": "ANTHROPIC_API_KEY tanımlı değil — ajan yanıt veremiyor.",
+                "error": "ANTHROPIC_API_KEY tanımlı değil.",
+                "model": model or self.default_model(),
+                "tokens_in": 0, "tokens_out": 0,
+            }
+
+        use_model = model or agent.get("model") or self.default_model()
+        system = build_system_prompt(agent, "danisma").split("## Bu talebin türü")[0] + CHAT_RULES
+
+        opening = f"DOSYA KONUSU: {base.get('subject') or '-'}\n\nİLK TALEBİM:\n{base.get('question') or ''}"
+        if matter_context:
+            opening = f"DOSYA BİLGİSİ:\n{matter_context}\n\n{opening}"
+        summary = self._result_digest(base.get("result") or {})
+
+        messages = [
+            {"role": "user", "content": opening},
+            {"role": "assistant", "content": summary},
+        ]
+        for m in history[-20:]:
+            role = "assistant" if m.get("role") == "assistant" else "user"
+            content = (m.get("content") or "").strip()
+            if content:
+                messages.append({"role": role, "content": content})
+
+        blocks = self._build_content("danisma", question, None, None, None, attachments or [], None)
+        # Sohbette talep türü başlığı gereksiz — son metin bloğunu sadeleştir
+        if blocks and blocks[-1].get("type") == "text":
+            blocks[-1]["text"] = blocks[-1]["text"].split("SORU / TALEP:", 1)[-1].strip() or question
+        messages.append({"role": "user", "content": blocks})
+
+        try:
+            response = self.client.messages.create(
+                model=use_model, max_tokens=3000, system=system, messages=messages,
+            )
+            text = response.content[0].text if response.content else ""
+            usage = getattr(response, "usage", None)
+            return {
+                "ok": True, "reply": text.strip(), "error": None, "model": use_model,
+                "tokens_in": getattr(usage, "input_tokens", 0) or 0,
+                "tokens_out": getattr(usage, "output_tokens", 0) or 0,
+            }
+        except Exception as e:
+            logger.exception("LegalAI chat failed: %s", e)
+            return {
+                "ok": False,
+                "reply": f"Yanıt alınamadı: {e}",
+                "error": str(e), "model": use_model, "tokens_in": 0, "tokens_out": 0,
+            }
+
+    # ── İkinci okuma (denetim) ─────────────────────────────────
+
+    def review(self, agent_name: str, mode: str, question: str, result: dict,
+               model: Optional[str] = None) -> dict:
+        """Hukuk Denetçisi çıktıyı denetler; bulguları döner."""
+        empty = {"karar": "hata", "puan": 0.0, "ozet": "", "bulgular": [],
+                 "dogrulanmasi_gerekenler": []}
+        if not self.is_configured():
+            out = dict(empty)
+            out["ozet"] = "ANTHROPIC_API_KEY tanımlı değil — denetim yapılamadı."
+            return {"ok": False, "review": out, "error": "ANTHROPIC_API_KEY tanımlı değil."}
+
+        use_model = model or settings.legal_review_model or self.default_model()
+        payload = json.dumps(result, ensure_ascii=False)[:60_000]
+        user = (
+            f"DENETLENECEK ÇIKTIYI ÜRETEN AJAN: {agent_name}\n"
+            f"TALEP TÜRÜ: {MODES.get(mode, mode)}\n"
+            f"KULLANICININ TALEBİ:\n{(question or '').strip()[:4000]}\n\n"
+            f"AJANIN ÇIKTISI (JSON):\n{payload}"
+        )
+        try:
+            response = self.client.messages.create(
+                model=use_model, max_tokens=3000, system=REVIEWER_PROMPT,
+                messages=[{"role": "user", "content": user}],
+            )
+            data = self._loads(response.content[0].text if response.content else "")
+            out = dict(empty)
+            if isinstance(data, dict):
+                out.update({k: data.get(k, empty[k]) for k in empty})
+            if not isinstance(out.get("bulgular"), list):
+                out["bulgular"] = []
+            if not isinstance(out.get("dogrulanmasi_gerekenler"), list):
+                out["dogrulanmasi_gerekenler"] = []
+            if out.get("karar") not in ("temiz", "duzeltme_gerekli", "riskli"):
+                out["karar"] = "duzeltme_gerekli" if out["bulgular"] else "temiz"
+            try:
+                out["puan"] = max(0.0, min(1.0, float(out.get("puan") or 0.0)))
+            except (TypeError, ValueError):
+                out["puan"] = 0.0
+            usage = getattr(response, "usage", None)
+            return {
+                "ok": True, "review": out, "error": None, "model": use_model,
+                "tokens_in": getattr(usage, "input_tokens", 0) or 0,
+                "tokens_out": getattr(usage, "output_tokens", 0) or 0,
+            }
+        except Exception as e:
+            logger.exception("LegalAI review failed: %s", e)
+            out = dict(empty)
+            out["ozet"] = f"Denetim yapılamadı: {e}"
+            return {"ok": False, "review": out, "error": str(e), "model": use_model}
+
+    # ── Kurul sentezi ──────────────────────────────────────────
+
+    def board_synthesis(self, question: str, opinions: list,
+                        matter_context: Optional[str] = None,
+                        model: Optional[str] = None) -> dict:
+        """Ajan görüşlerini tek karara bağlar; normal sonuç şemasında döner."""
+        if not self.is_configured():
+            return {
+                "ok": False,
+                "result": self._blank("ANTHROPIC_API_KEY tanımlı değil — kurul toplanamadı."),
+                "error": "ANTHROPIC_API_KEY tanımlı değil.",
+                "model": model or self.default_model(), "tokens_in": 0, "tokens_out": 0,
+            }
+
+        use_model = model or self.default_model()
+        parts = [f"OLAY / TALEP:\n{question.strip()}"]
+        if matter_context:
+            parts.append(f"\nDOSYA BİLGİSİ:\n{matter_context}")
+        for op in opinions:
+            parts.append(
+                f"\n--- {op['name']} ({op['title']}) GÖRÜŞÜ ---\n"
+                + json.dumps(op["result"], ensure_ascii=False)[:20_000]
+            )
+        system = f"{BOARD_PROMPT}\n{OUTPUT_CONTRACT}"
+        try:
+            response = self.client.messages.create(
+                model=use_model, max_tokens=8000, system=system,
+                messages=[{"role": "user", "content": "\n".join(parts)}],
+            )
+            result = self._parse(response.content[0].text if response.content else "")
+            usage = getattr(response, "usage", None)
+            return {
+                "ok": True, "result": result, "error": None, "model": use_model,
+                "tokens_in": getattr(usage, "input_tokens", 0) or 0,
+                "tokens_out": getattr(usage, "output_tokens", 0) or 0,
+            }
+        except Exception as e:
+            logger.exception("LegalAI board failed: %s", e)
+            return {
+                "ok": False, "result": self._blank(f"Kurul görüşü üretilemedi: {e}"),
+                "error": str(e), "model": use_model, "tokens_in": 0, "tokens_out": 0,
+            }
+
+    def _result_digest(self, result: dict) -> str:
+        """Sohbette ajanın kendi ilk görüşünü hatırlaması için kısa özet."""
+        if not result:
+            return "(önceki görüş bulunamadı)"
+        lines = [result.get("ozet") or ""]
+        if result.get("degerlendirme"):
+            lines.append(str(result["degerlendirme"])[:3000])
+        for s_ in (result.get("sureler") or [])[:5]:
+            if isinstance(s_, dict):
+                lines.append(f"Süre: {s_.get('is')} — {s_.get('sure')} ({s_.get('baslangic') or ''})")
+        for a_ in (result.get("adimlar") or [])[:6]:
+            if isinstance(a_, dict):
+                lines.append(f"Adım {a_.get('sira')}: {a_.get('baslik')}")
+        return "\n".join(x for x in lines if x).strip() or "(önceki görüş bulunamadı)"
+
     def _build_content(
         self,
         mode: str,
@@ -241,6 +430,7 @@ class LegalAI:
         doc_type: Optional[str],
         subject: Optional[str],
         attachments: list,
+        matter_context: Optional[str] = None,
     ) -> list:
         """Kullanıcı mesajını blok listesi olarak kurar.
 
@@ -273,6 +463,8 @@ class LegalAI:
                 text_docs.append(f"[EK {i} — {name}]\n{body}{cut}")
 
         parts = [f"TALEP TÜRÜ: {MODES[mode]}"]
+        if matter_context:
+            parts.append(f"\nDOSYA BİLGİSİ (ofis hafızası — bu dosyada daha önce ne oldu):\n{matter_context}")
         if subject:
             parts.append(f"KONU BAŞLIĞI: {subject}")
         if doc_type:

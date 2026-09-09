@@ -108,6 +108,10 @@ gespa-os/
 **Dört çalışma modu:** `danisma` (değerlendirme + yol haritası) · `dilekce` (belge taslağı) ·
 `inceleme` (sözleşme/belge risk analizi) · `arastirma` (mevzuat derlemesi).
 
+### Hukuk Ofisi ekranları
+`/hukuk` **Kadro** · `/hukuk/belge` **Belge Analizi** · `/hukuk/dosyalar` **Dosyalar** ·
+`/hukuk/sureler` **Süreler** · `/hukuk/sablonlar` **Şablonlar** · `/hukuk/kurul` **Kurul**
+
 ### 📎 Belge Analizi — dosyayı yükle, gerisini sistem yapsın (`/hukuk/belge`)
 Tebligat, ödeme emri, ihtarname, sözleşme veya ceza tutanağını yükle; sistem iki kademede çalışır:
 
@@ -128,6 +132,43 @@ Her ajan tek bir JSON sözleşmesiyle cevap verir: özet, hukuki değerlendirme,
 (hak düşürücü olanlar kırmızı), yapılacaklar, riskler, ilgili mevzuat (emin olunmayan madde
 "teyit edilmeli" işaretli), eksik bilgiler, tahmini maliyet ve istenmişse tam dilekçe metni.
 
+### 📁 Dosyalar — ofisin hafızası (`/hukuk/dosyalar`)
+Bir uyuşmazlığın künyesi (taraflar, sıfatımız, merci, esas no, aşama, uyuşmazlık değeri,
+duruşma günü), belgeleri, görüşleri ve süreleri tek yerde. **Dosyaya bağlı her yeni soruda ajan,
+o dosyadaki önceki görüşleri, açık süreleri ve belge künyelerini bağlam olarak görür** — aynı
+şeyi ikinci kez anlatmazsın (`_matter_context`).
+
+### ⏱ Süreler — hak düşürücü süre takibi (`/hukuk/sureler`)
+Analizden çıkan "7 gün", "on beş gün", "3 ay" gibi ifadeler **tek tıkla gerçek tarihe çevrilir**
+(`services/legal_dates.py`; Türkçe sayı sözcükleri, iş günü, ay taşması dâhil) ve takvime yazılır.
+Geçmiş / bu hafta / bu ay diye gruplanır, geri sayar; Dashboard'da da uyarı kartı çıkar.
+Hesap **tahminîdir** — resmî ve adli tatil hesaba katılmaz, arayüz bunu her yerde söyler.
+
+### 🛡 İkinci okuma — Hukuk Denetçisi
+Her çıktı tek tuşla denetlenir: **uydurma madde/karar**, süre hatası, yanlış merci, atlanmış hak
+yolu, aşırı güvenli dil, dilekçe kusuru ve iç tutarsızlık aranır. Sonuç `temiz` /
+`duzeltme_gerekli` / `riskli` kararı, puan ve maddelenmiş bulgularla döner.
+
+### 👥 Hukuk Kurulu (`/hukuk/kurul`)
+Birden çok alanı kesen olaylarda 2-4 ajan aynı olaya ayrı ayrı bakar, Baş Hukuk Müşaviri
+görüşleri tek karara bağlar — **görüş ayrılığı varsa gizlemez**, açıkça yazar. Ajanları sen
+seçebilir ya da sisteme bıraktırabilirsin.
+
+### 💬 Devam sohbeti
+Her danışmanın altında ajanla konuşma sürer: ajan kendi ilk görüşünü ve dosyayı hatırlar,
+bu turda JSON değil düz Türkçe yanıt verir (uydurma yasağı ve süre uyarısı aynen geçerli).
+
+### 📄 Word çıktısı
+Dilekçe taslağı ve tam değerlendirme raporu **.docx** olarak indirilir — Times New Roman 12pt,
+dilekçe kenar boşlukları, ortalanmış başlıklar, yasal uyarı dipnotu. Ek bağımlılık yok:
+`services/legal_export.py` OOXML'i stdlib `zipfile` ile üretir.
+
+### 🗂 Şablonlar (`/hukuk/sablonlar`)
+15 hazır dilekçe/yazışma (ihtarname, ödeme emrine itiraz, trafik cezası itirazı, tahliye ihtarı,
+fesih bildirimi, hakem heyeti başvurusu, suç duyurusu, uzlaşma talebi, GES ret itirazı, KVKK
+aydınlatma metni, ihalenin feshi…). Şablonu seç, istenen bilgileri doldur — ilgili ajan belgeyi
+senin olayına göre yazar.
+
 ### Tek doğru kaynak — `apps/api/app/legal_agents.py`
 Ajanların tanımı, uzmanlık alanları, ürettiği belgeler ve rol promptları **yalnızca** bu
 dosyadadır; `seed.py` her deploy'da veritabanını buna senkronlar (kullanıcının açtığı/kapattığı
@@ -140,15 +181,16 @@ bir satır eklemek. Ajan promptunu koda gömmeyin.
 - Madde numarası / karar numarası uydurma yasak — emin olunmayan her madde `teyit: true`.
 - Süre uyarıları çıktının en üstünde gösterilir.
 - Model `LEGAL_MODEL` env değişkeniyle değiştirilebilir (varsayılan `claude-opus-5`);
-  belge triyajı için ayrı ve daha ucuz bir model istersen `LEGAL_TRIAGE_MODEL`.
+  belge triyajı için `LEGAL_TRIAGE_MODEL`, ikinci okuma için `LEGAL_REVIEW_MODEL` (boşsa ana model).
+- Süre tarihleri tahminîdir: resmî/adli tatil ve özel tebligat kuralları hesaba katılmaz.
   `ANTHROPIC_API_KEY` yoksa ajanlar listelenir ama çalıştırılamaz; arayüz bunu söyler.
 
-**API:** `GET /api/legal/agents` · `GET /api/legal/agents/{slug}` ·
-`POST /api/legal/agents/{slug}/toggle` · `POST /api/legal/consult` ·
-`GET|DELETE /api/legal/consultations[/{id}]` · `POST /api/legal/documents` (multipart) ·
-`GET|DELETE /api/legal/documents[/{id}]` · `POST /api/legal/documents/analyze` ·
-`GET|POST /api/legal/matters` · `GET /api/legal/meta` · `GET /api/legal/stats`
-(hepsi oturum ister).
+**API** (34 uç, hepsi oturum ister):
+`/agents[/{slug}][/toggle]` · `/consult` · `/consultations[/{id}]` ·
+`/consultations/{id}/messages` (sohbet) · `/consultations/{id}/review` (denetim) ·
+`/consultations/{id}/deadlines` (süreleri takvime yaz) · `/consultations/{id}/export?part=belge|rapor`
+(Word) · `/documents` (multipart) · `/documents/analyze` · `/matters[/{id}]` (+ PATCH, `/attach`) ·
+`/deadlines[/{id}]` · `/agenda` · `/board` (kurul) · `/templates[/{id}/draft]` · `/meta` · `/stats`
 
 ---
 
@@ -156,7 +198,8 @@ bir satır eklemek. Ajan promptunu koda gömmeyin.
 
 - ✅ **Hafta 1:** Auth, dashboard iskeleti, 6 workspace + 12 AI ajan seed — **canlıda**
 - 🔄 **Hafta 2:** Dashboard v2 (hava/döviz/haber/viski saati) + WhatsApp Business API entegrasyonu
-- ✅ **Hukuk Ofisi:** 23 avukat ajanı + belge yükleyip otomatik triyaj/analiz — **canlıda**
+- ✅ **Hukuk Ofisi (tam):** 23 avukat ajanı · belge analizi · dosya hafızası · süre takvimi ·
+  devam sohbeti · ikinci okuma · hukuk kurulu · 15 şablon · Word çıktısı — **canlıda**
 - ⏳ **Hafta 3:** Email Asistanı (Gmail MCP) + Satış Uzmanı AI ajanı aktif
 - ⏳ **Hafta 4:** CRM + Takvim + sabah brief otomatik mail
 - 🔜 **Faz 2 (Ay 2-3):** Ses kayıt + özet, AI karar desteği, telefon çağrı entegrasyonu
