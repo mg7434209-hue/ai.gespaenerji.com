@@ -120,6 +120,8 @@ export interface LegalConsultation {
   error: string | null
   model: string | null
   matter_id: number | null
+  document_ids: number[]
+  triage: LegalTriage | null
   created_at: string
 }
 
@@ -129,5 +131,45 @@ export interface LegalStats {
   consultations: number
   drafts: number
   open_matters: number
+  documents: number
   ai_configured: boolean
+}
+
+export interface LegalDocument {
+  id: number
+  filename: string
+  kind: 'pdf' | 'image' | 'text'
+  media_type: string
+  size: number
+  pages: number | null
+  char_count: number
+  preview: string
+  notes: string[]
+  matter_id: number | null
+  created_at: string
+}
+
+/** Belge triyajı — sistem belgeyi okuyup hangi ajana gideceğine karar verir. */
+export interface LegalTriage {
+  belge_turu: string
+  ozet: string
+  taraflar: string[]
+  tarihler: { ne?: string; tarih?: string }[]
+  tutarlar: string[]
+  referans: string
+  sure_uyarisi: string
+  agent_slug: string
+  alternatif_ajan: string | null
+  onerilen_mod: LegalMode
+  gerekce: string
+  aciliyet: 'dusuk' | 'orta' | 'yuksek'
+  guven: number
+}
+
+export interface LegalAnalyzeResponse {
+  triage: LegalTriage
+  routed_to: { slug: string; name: string; title: string; icon: string | null; color: string | null }
+  auto_routed: boolean
+  consultation: LegalConsultation
+  documents: LegalDocument[]
 }

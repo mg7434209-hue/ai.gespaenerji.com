@@ -108,6 +108,22 @@ gespa-os/
 **Dört çalışma modu:** `danisma` (değerlendirme + yol haritası) · `dilekce` (belge taslağı) ·
 `inceleme` (sözleşme/belge risk analizi) · `arastirma` (mevzuat derlemesi).
 
+### 📎 Belge Analizi — dosyayı yükle, gerisini sistem yapsın (`/hukuk/belge`)
+Tebligat, ödeme emri, ihtarname, sözleşme veya ceza tutanağını yükle; sistem iki kademede çalışır:
+
+1. **Triyaj** — belgeyi okur, türünü, taraflarını, tarihlerini, tutarlarını ve **belgeden çıkan
+   süreyi** çıkarır, hangi avukat ajanına gideceğine karar verir (aciliyet + güven skoruyla).
+2. **Analiz** — seçilen ajan belgeyi baştan inceler ve tam değerlendirmeyi üretir.
+
+Ajanı elle de seçebilirsin; ayrıca herhangi bir ajanın kendi sayfasındaki forma belge iliştirip
+soru sorabilirsin.
+
+**Desteklenen dosyalar:** PDF (modele doğrudan gider, Claude sayfaları kendisi okur) · fotoğraf
+/ tarama (JPG, PNG, WebP, GIF — görsel olarak okunur) · Word `.docx` (metni stdlib `zipfile` ile
+çıkarılır, ek paket yok) · düz metin (TXT, MD, CSV, JSON; UTF-8/CP1254 çözümlemesi).
+`.doc` ve Excel açık bir mesajla reddedilir. Sınır: dosya başına **12 MB**, bir analizde toplam
+**15 MB**. Belgeler veritabanında saklanır — Railway'de Volume olmasa da deploy sonrası kaybolmaz.
+
 Her ajan tek bir JSON sözleşmesiyle cevap verir: özet, hukuki değerlendirme, **süreler**
 (hak düşürücü olanlar kırmızı), yapılacaklar, riskler, ilgili mevzuat (emin olunmayan madde
 "teyit edilmeli" işaretli), eksik bilgiler, tahmini maliyet ve istenmişse tam dilekçe metni.
@@ -123,13 +139,16 @@ bir satır eklemek. Ajan promptunu koda gömmeyin.
   değiştirtilmez (`legal_agents.DISCLAIMER`).
 - Madde numarası / karar numarası uydurma yasak — emin olunmayan her madde `teyit: true`.
 - Süre uyarıları çıktının en üstünde gösterilir.
-- Model `LEGAL_MODEL` env değişkeniyle değiştirilebilir (varsayılan `claude-opus-5`).
+- Model `LEGAL_MODEL` env değişkeniyle değiştirilebilir (varsayılan `claude-opus-5`);
+  belge triyajı için ayrı ve daha ucuz bir model istersen `LEGAL_TRIAGE_MODEL`.
   `ANTHROPIC_API_KEY` yoksa ajanlar listelenir ama çalıştırılamaz; arayüz bunu söyler.
 
 **API:** `GET /api/legal/agents` · `GET /api/legal/agents/{slug}` ·
 `POST /api/legal/agents/{slug}/toggle` · `POST /api/legal/consult` ·
-`GET|DELETE /api/legal/consultations[/{id}]` · `GET|POST /api/legal/matters` ·
-`GET /api/legal/meta` · `GET /api/legal/stats` (hepsi oturum ister).
+`GET|DELETE /api/legal/consultations[/{id}]` · `POST /api/legal/documents` (multipart) ·
+`GET|DELETE /api/legal/documents[/{id}]` · `POST /api/legal/documents/analyze` ·
+`GET|POST /api/legal/matters` · `GET /api/legal/meta` · `GET /api/legal/stats`
+(hepsi oturum ister).
 
 ---
 
@@ -137,7 +156,7 @@ bir satır eklemek. Ajan promptunu koda gömmeyin.
 
 - ✅ **Hafta 1:** Auth, dashboard iskeleti, 6 workspace + 12 AI ajan seed — **canlıda**
 - 🔄 **Hafta 2:** Dashboard v2 (hava/döviz/haber/viski saati) + WhatsApp Business API entegrasyonu
-- ✅ **Hukuk Ofisi:** 23 avukat ajanı + danışma/dilekçe/inceleme/mevzuat modları — **canlıda**
+- ✅ **Hukuk Ofisi:** 23 avukat ajanı + belge yükleyip otomatik triyaj/analiz — **canlıda**
 - ⏳ **Hafta 3:** Email Asistanı (Gmail MCP) + Satış Uzmanı AI ajanı aktif
 - ⏳ **Hafta 4:** CRM + Takvim + sabah brief otomatik mail
 - 🔜 **Faz 2 (Ay 2-3):** Ses kayıt + özet, AI karar desteği, telefon çağrı entegrasyonu

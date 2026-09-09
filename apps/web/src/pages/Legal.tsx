@@ -11,6 +11,9 @@ import {
   ChevronRight,
   Trash2,
   Inbox,
+  ScanSearch,
+  Sparkles,
+  FileStack,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/lib/api'
@@ -153,12 +156,35 @@ export function Legal() {
         </div>
       )}
 
+      {/* Belge yükleme kısayolu — "dosyayı ver, sistem halletsin" akışı */}
+      <Link
+        to="/hukuk/belge"
+        className="card flex flex-wrap items-center justify-between gap-4 hover:border-brand-500/50 transition-colors"
+      >
+        <div className="flex items-center gap-4 min-w-0">
+          <span className="w-11 h-11 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center shrink-0">
+            <ScanSearch className="w-5 h-5" />
+          </span>
+          <div className="min-w-0">
+            <div className="font-semibold text-slate-100">Belgeyi yükle, sistem analiz etsin</div>
+            <p className="text-sm text-slate-400 mt-0.5">
+              Tebligat, ödeme emri, sözleşme veya ceza tutanağını at — hangi ajana gideceğine,
+              hangi sürelerin işlediğine ve ne yapman gerektiğine sistem karar versin.
+            </p>
+          </div>
+        </div>
+        <span className="btn-primary inline-flex items-center gap-2 shrink-0">
+          <Sparkles className="w-4 h-4" /> Belge Analizi
+        </span>
+      </Link>
+
       {/* Özet */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Summary icon={Users} label="Avukat Ajanı" value={stats?.agents_total ?? agents.length} tone="text-slate-300 bg-slate-700/30" />
         <Summary icon={Zap} label="Görevde" value={stats?.agents_active ?? 0} tone="text-green-400 bg-green-500/10" />
         <Summary icon={MessageSquareQuote} label="Danışma" value={stats?.consultations ?? 0} tone="text-brand-400 bg-brand-500/10" />
         <Summary icon={FileCheck2} label="Belge Taslağı" value={stats?.drafts ?? 0} tone="text-blue-400 bg-blue-500/10" />
+        <Summary icon={FileStack} label="Yüklü Belge" value={stats?.documents ?? 0} tone="text-purple-400 bg-purple-500/10" />
       </div>
 
       {loading ? (
@@ -325,6 +351,11 @@ function HistoryList({
                 {c.draft && (
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">
                     belge taslağı
+                  </span>
+                )}
+                {c.document_ids?.length > 0 && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                    {c.document_ids.length} belge
                   </span>
                 )}
               </div>

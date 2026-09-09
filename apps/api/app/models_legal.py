@@ -6,7 +6,9 @@ uzmanlık alanı, ürettiği belge tipleri ve dosya/danışma geçmişi var.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Text, Boolean, JSON, Float
+from sqlalchemy import (
+    String, Integer, DateTime, ForeignKey, Text, Boolean, JSON, Float, LargeBinary,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -78,6 +80,10 @@ class LegalConsultation(Base):
     context: Mapped[Optional[str]] = mapped_column(Text)      # olay örgüsü / sözleşme metni
     doc_type: Mapped[Optional[str]] = mapped_column(String(128))  # istenen belge tipi
 
+    # Analize eklenen yüklü belgeler (legal_documents.id listesi) ve triyaj kaydı
+    document_ids: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+    triage: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
+
     # AI çıktısı
     result: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
     summary: Mapped[Optional[str]] = mapped_column(Text)
@@ -95,3 +101,27 @@ class LegalConsultation(Base):
 
     agent: Mapped["LegalAgent"] = relationship(back_populates="consultations")
     matter: Mapped[Optional["LegalMatter"]] = relationship(back_populates="consultations")
+
+
+class LegalDocument(Base):
+    """Yüklenen belge — ham veri + çıkarılan metin.
+
+    Ham içerik veritabanında tutulur: Railway'de Volume bağlı olmasa da
+    deploy sonrası belgeler kaybolmasın. Üst sınır document_text.MAX_FILE_BYTES.
+    """
+    __tablename__ = "legal_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), default="text")   # pdf | image | text
+    media_type: Mapped[str] = mapped_column(String(128), default="text/plain")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    pages: Mapped[Optional[int]] = mapped_column(Integer)
+
+    content: Mapped[Optional[bytes]] = mapped_column(LargeBinary)   # pdf/görsel için ham veri
+    text: Mapped[Optional[str]] = mapped_column(Text)               # metin belgelerde dolu
+    char_count: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[Optional[list]] = mapped_column(JSON, default=list)
+
+    matter_id: Mapped[Optional[int]] = mapped_column(ForeignKey("legal_matters.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
