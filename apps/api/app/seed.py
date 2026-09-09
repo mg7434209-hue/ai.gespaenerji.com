@@ -1,8 +1,13 @@
-"""İlk kurulum — admin kullanıcı + default workspace + 12 ajan seed."""
+"""İlk kurulum — admin kullanıcı + workspace + ajanlar + Hukuk Ofisi kadrosu."""
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, engine, Base
 from app.models import User, Workspace, Agent
+
+# Tablolar create_all ile oluşacağı için modellerin import edilmesi şart
+from app import models_whatsapp  # noqa: F401
+from app.models_legal import LegalAgent
+from app.legal_agents import LEGAL_AGENTS, build_system_prompt
 from app.auth.security import hash_password
 from app.config import settings
 
@@ -168,6 +173,50 @@ DEFAULT_WORKSPACES = [
 ADMIN_FULL_NAME = "Mustafa Göksoy"
 
 
+def seed_legal_agents(db: Session) -> None:
+    """Avukat ajan serisi — legal_agents.py tek doğru kaynak, DB ona senkronlanır.
+
+    Tanım alanları her deploy'da güncellenir; is_active kullanıcı tercihidir,
+    yalnızca ajan ilk kez eklenirken belirlenir. Listeden çıkarılan ajan silinir.
+    """
+    added = updated = 0
+    for order, spec in enumerate(LEGAL_AGENTS):
+        row = db.query(LegalAgent).filter(LegalAgent.slug == spec["slug"]).first()
+        fields = dict(
+            name=spec["name"],
+            title=spec["title"],
+            department=spec["department"],
+            description=spec["description"],
+            icon=spec["icon"],
+            color=spec["color"],
+            expertise=spec["expertise"],
+            documents=spec["documents"],
+            keywords=spec.get("keywords", []),
+            system_prompt=build_system_prompt(spec),
+            model=settings.legal_model,
+            sort_order=order,
+        )
+        if row:
+            for key, value in fields.items():
+                setattr(row, key, value)
+            updated += 1
+        else:
+            db.add(LegalAgent(slug=spec["slug"], is_active=True, **fields))
+            added += 1
+
+    known = {s["slug"] for s in LEGAL_AGENTS}
+    stale = db.query(LegalAgent).filter(LegalAgent.slug.notin_(known)).all()
+    for row in stale:
+        db.delete(row)
+
+    if added:
+        print(f"✓ {added} avukat ajanı eklendi")
+    if updated:
+        print(f"✓ {updated} avukat ajanı güncellendi")
+    if stale:
+        print(f"✓ {len(stale)} eski avukat ajanı kaldırıldı")
+
+
 def seed():
     """Tablolar + ilk veri."""
     Base.metadata.create_all(bind=engine)
@@ -218,6 +267,9 @@ def seed():
         )
         if removed:
             print(f"✓ {removed} eski şablon ajanı kaldırıldı")
+
+        # Hukuk Ofisi — avukat ajan serisi
+        seed_legal_agents(db)
 
         db.commit()
         print("✓ Seed tamamlandı.")

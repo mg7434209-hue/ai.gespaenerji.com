@@ -92,10 +92,52 @@ gespa-os/
 
 ---
 
+## ⚖️ Hukuk Ofisi — avukat ajan serisi
+
+`/hukuk` menüsü, uzmanlık alanına göre ayrılmış **23 avukat ajanı** barındırır:
+
+| Departman | Ajanlar |
+|---|---|
+| Ofis Yönetimi | Baş Hukuk Müşaviri · Dilekçe Yazarı · Mevzuat Araştırmacısı · Dosya Takip Asistanı |
+| Dava & Uyuşmazlık | Dava Stratejisti · Ceza Avukatı · Tüketici Hakları Avukatı |
+| İcra & Alacak | İcra & İflas Avukatı · Alacak & Tahsilat Avukatı |
+| Ticari & Kurumsal | Sözleşme · Şirketler · İş Hukuku · KVKK & Bilişim · Marka & Fikri Mülkiyet |
+| Kişi, Aile & Miras | Aile · Miras · Gayrimenkul & Kira · Sigorta & Tazminat |
+| Kamu, İdare & Vergi | Trafik & İdari Ceza · Vergi · İdare · Enerji Mevzuatı (GES) · İhale & Taşınmaz |
+
+**Dört çalışma modu:** `danisma` (değerlendirme + yol haritası) · `dilekce` (belge taslağı) ·
+`inceleme` (sözleşme/belge risk analizi) · `arastirma` (mevzuat derlemesi).
+
+Her ajan tek bir JSON sözleşmesiyle cevap verir: özet, hukuki değerlendirme, **süreler**
+(hak düşürücü olanlar kırmızı), yapılacaklar, riskler, ilgili mevzuat (emin olunmayan madde
+"teyit edilmeli" işaretli), eksik bilgiler, tahmini maliyet ve istenmişse tam dilekçe metni.
+
+### Tek doğru kaynak — `apps/api/app/legal_agents.py`
+Ajanların tanımı, uzmanlık alanları, ürettiği belgeler ve rol promptları **yalnızca** bu
+dosyadadır; `seed.py` her deploy'da veritabanını buna senkronlar (kullanıcının açtığı/kapattığı
+durum korunur, listeden çıkarılan ajan silinir). Yeni ajan eklemek = `LEGAL_AGENTS` listesine
+bir satır eklemek. Ajan promptunu koda gömmeyin.
+
+### Kurallar
+- Ajanlar avukat değildir: her çıktı sabit yasal uyarıyla döner ve bu metin modele
+  değiştirtilmez (`legal_agents.DISCLAIMER`).
+- Madde numarası / karar numarası uydurma yasak — emin olunmayan her madde `teyit: true`.
+- Süre uyarıları çıktının en üstünde gösterilir.
+- Model `LEGAL_MODEL` env değişkeniyle değiştirilebilir (varsayılan `claude-opus-5`).
+  `ANTHROPIC_API_KEY` yoksa ajanlar listelenir ama çalıştırılamaz; arayüz bunu söyler.
+
+**API:** `GET /api/legal/agents` · `GET /api/legal/agents/{slug}` ·
+`POST /api/legal/agents/{slug}/toggle` · `POST /api/legal/consult` ·
+`GET|DELETE /api/legal/consultations[/{id}]` · `GET|POST /api/legal/matters` ·
+`GET /api/legal/meta` · `GET /api/legal/stats` (hepsi oturum ister).
+
+---
+
 ## 🗺️ Yol Haritası
 
 - ✅ **Hafta 1:** Auth, dashboard iskeleti, 6 workspace + 12 AI ajan seed — **canlıda**
 - 🔄 **Hafta 2:** Dashboard v2 (hava/döviz/haber/viski saati) + WhatsApp Business API entegrasyonu
+- ✅ **Hukuk Ofisi:** 23 avukat ajanı + danışma/dilekçe/inceleme/mevzuat modları — **canlıda**
 - ⏳ **Hafta 3:** Email Asistanı (Gmail MCP) + Satış Uzmanı AI ajanı aktif
 - ⏳ **Hafta 4:** CRM + Takvim + sabah brief otomatik mail
 - 🔜 **Faz 2 (Ay 2-3):** Ses kayıt + özet, AI karar desteği, telefon çağrı entegrasyonu

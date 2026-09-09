@@ -9,6 +9,7 @@ import {
   Sparkles,
   MessageSquare,
   Map,
+  Scale,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '@/lib/auth'
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/workspaces', label: 'Workspaces', icon: Briefcase },
   { to: '/leads', label: 'Lead Yönetimi', icon: Users },
   { to: '/agents', label: 'Dijital Ofis', icon: Bot },
+  { to: '/hukuk', label: 'Hukuk Ofisi', icon: Scale },
   { to: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 
@@ -37,7 +39,7 @@ export function Sidebar() {
           </div>
           <div>
             <div className="font-bold text-slate-100">Gespa OS</div>
-            <div className="text-xs text-slate-400">v0.4.0</div>
+            <div className="text-xs text-slate-400">v0.5.0</div>
           </div>
         </div>
       </div>

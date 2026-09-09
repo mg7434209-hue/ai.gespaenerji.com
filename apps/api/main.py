@@ -15,6 +15,7 @@ from app.routers.workspaces import router as workspaces_router
 from app.routers.leads import router as leads_router
 from app.routers.agents import router as agents_router
 from app.routers.whatsapp import router as whatsapp_router
+from app.routers.legal import router as legal_router
 
 
 @asynccontextmanager
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Gespa OS",
     description="Kişisel CEO Asistanı — AI departmanları + workspace sistemi",
-    version="0.2.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -58,6 +59,7 @@ app.include_router(workspaces_router)
 app.include_router(leads_router)
 app.include_router(agents_router)
 app.include_router(whatsapp_router)
+app.include_router(legal_router)
 
 
 @app.get("/api/health")
@@ -65,7 +67,7 @@ def health():
     return {
         "status": "ok",
         "app": "gespa-os",
-        "version": "0.2.0",
+        "version": "0.5.0",
         "environment": settings.environment,
     }
 

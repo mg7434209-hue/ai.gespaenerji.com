@@ -9,6 +9,8 @@ import { Agents } from './pages/Agents'
 import { Settings } from './pages/Settings'
 import { Inbox } from './pages/Inbox'
 import { Roadmap } from './pages/Roadmap'
+import { Legal } from './pages/Legal'
+import { LegalAgentDetail } from './pages/LegalAgentDetail'
 
 export default function App() {
   return (
@@ -29,6 +31,8 @@ export default function App() {
         <Route path="workspaces/:slug" element={<Workspaces />} />
         <Route path="leads" element={<Leads />} />
         <Route path="agents" element={<Agents />} />
+        <Route path="hukuk" element={<Legal />} />
+        <Route path="hukuk/:slug" element={<LegalAgentDetail />} />
         <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     gemini_api_key: str = ""
 
+    # Hukuk Ofisi ajanlarının modeli (LEGAL_MODEL env ile değiştirilebilir)
+    legal_model: str = "claude-opus-5"
+
     # WhatsApp Business API (Meta Cloud)
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""
