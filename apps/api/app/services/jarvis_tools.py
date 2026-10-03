@@ -21,6 +21,23 @@ from app.timeutil import today_tr
 
 MAX_ROWS = 50
 
+# Lead verisinin NEREDEN geldiği. Model "lead yok" ile "lead verisi bağlı
+# değil"i karıştırmasın diye her lead çıktısına eklenir. Yeni kaynak
+# bağlanınca (ör. tarifesec API'si) buradaki listeyi güncelle.
+LEAD_SOURCE = {
+    "reads": "Gespa OS'in kendi leads tablosu (Lead Yönetimi ekranından elle girilen kayıtlar)",
+    "not_connected": [
+        "internetbasvuru.com başvuruları",
+        "tarifesec.net.tr başvuruları",
+        "gespaenerji.com ve gesmarketim.com formları/siparişleri",
+        "WhatsApp mesajları (gelen mesajdan otomatik lead açılmıyor)",
+    ],
+}
+
+
+def _lead_source(db: Session) -> dict:
+    return {**LEAD_SOURCE, "table_total": db.query(func.count(Lead.id)).scalar() or 0}
+
 
 class ToolInputError(ValueError):
     """Modelin gönderdiği girdi geçersiz — is_error'lu tool_result olarak döner."""
@@ -184,7 +201,8 @@ def list_workspaces(db: Session, inp: dict) -> dict:
             {"slug": w.slug, "name": w.name, "description": w.description,
              "is_active": w.is_active, "leads_by_status": counts.get(w.id, {})}
             for w in db.query(Workspace).order_by(Workspace.id).all()
-        ]
+        ],
+        "lead_data_source": _lead_source(db),
     }
 
 
@@ -203,6 +221,7 @@ def list_leads(db: Session, inp: dict) -> dict:
         q = q.filter(Lead.created_at >= datetime.utcnow() - timedelta(days=since))
     rows = q.order_by(Lead.created_at.desc()).limit(limit).all()
     return {
+        "data_source": _lead_source(db),
         "count": len(rows),
         "leads": [
             {"id": l.id, "workspace": ws, "name": l.full_name, "status": l.status,
@@ -281,7 +300,11 @@ TOOLS = [
     },
     {
         "name": "list_leads",
-        "description": "Potansiyel müşteriler (lead). Durumlar: new, contacted, offered (teklif verildi), won, lost.",
+        "description": (
+            "Potansiyel müşteriler (lead). Durumlar: new, contacted, offered (teklif verildi), won, lost. "
+            "Yalnız Gespa OS'in kendi tablosunu okur; diğer sitelerin başvuruları bağlı değildir "
+            "(çıktıdaki data_source alanı)."
+        ),
         "input_schema": _schema({
             "workspace_slug": {"type": "string", "description": "örn. superonline, solar"},
             "status": {"type": "string", "enum": ["new", "contacted", "offered", "won", "lost", "all"]},

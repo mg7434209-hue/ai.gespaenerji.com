@@ -115,6 +115,17 @@ def test_matter_and_workspace_tools(db, data):
     assert [l["name"] for l in leads["leads"]] == ["Veli T."]
 
 
+def test_empty_lead_table_reports_source_not_absence(db):
+    out = jarvis_tools.list_leads(db, {"status": "new"})
+    assert out["count"] == 0
+    src = out["data_source"]
+    assert src["table_total"] == 0
+    assert any("internetbasvuru" in s for s in src["not_connected"])
+    assert any("tarifesec" in s for s in src["not_connected"])
+    assert "lead yok" in jarvis.SYSTEM_PROMPT and "data_source" in jarvis.SYSTEM_PROMPT
+    assert jarvis_tools.list_workspaces(db, {})["lead_data_source"]["table_total"] == 0
+
+
 def test_every_tool_is_read_only(db, data):
     """Faz 1 kuralı: hiçbir araç veritabanına yazmaz."""
     from sqlalchemy import event
