@@ -31,7 +31,7 @@ class UserResponse(BaseModel):
 @router.post("/login")
 def login(data: LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email.lower()).first()
-    if not user or not verify_password(data.password, user.password_hash):
+    if not user or not user.is_active or not verify_password(data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email veya şifre hatalı",

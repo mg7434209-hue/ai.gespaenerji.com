@@ -6,15 +6,18 @@
 - Send message (manuel cevap)
 - AI draft (AI taslağı al)
 """
+import hashlib
+import hmac
+import json
 import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models import User
 from app.auth.dependencies import get_current_user
 from app.config import settings
@@ -57,21 +60,43 @@ async def webhook_verify(request: Request):
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
+def verify_signature(raw_body: bytes, header: Optional[str]) -> bool:
+    """Meta imzası: X-Hub-Signature-256 = "sha256=" + HMAC-SHA256(app secret, ham gövde).
+
+    App secret tanımlı değilse imza doğrulanamaz: üretimde istek REDDEDİLİR
+    (sahte webhook ile mesaj yazdırılmasın), geliştirmede uyarıyla kabul edilir.
+    """
+    secret = settings.whatsapp_app_secret
+    if not secret:
+        if settings.is_production:
+            logger.error("WHATSAPP_APP_SECRET tanımlı değil — webhook reddedildi")
+            return False
+        logger.warning("WHATSAPP_APP_SECRET yok — imza doğrulanmadan kabul edildi (geliştirme)")
+        return True
+    if not header or not header.startswith("sha256="):
+        return False
+    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header[len("sha256="):])
+
+
 @router.post("/webhook")
-async def webhook_receive(request: Request, db: Session = Depends(get_db)):
+async def webhook_receive(
+    request: Request,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """Meta'dan gelen mesajları işle.
 
-    ÖNEMLİ: Meta 20 saniye içinde 200 OK bekliyor.
-    Bu yüzden:
-    1. Payload'ı kaydet (hızlı)
-    2. Mesajı veritabanına yaz (hızlı)
-    3. 200 döndür
-    4. AI analizi + auto-reply background'da (async)
-
-    Üretim ortamında bu arkaplan işi Celery/RQ queue'ya gitmeli. Şimdilik async task.
+    Meta 20 saniye içinde 200 OK bekler. Bu yüzden istek içinde yalnız imza
+    doğrulanır, payload ve mesaj veritabanına yazılır; okundu işareti ve AI
+    analizi/otomatik cevap yanıt döndükten SONRA arka planda çalışır.
     """
+    raw = await request.body()
+    if not verify_signature(raw, request.headers.get("x-hub-signature-256")):
+        raise HTTPException(status_code=403, detail="Geçersiz imza")
+
     try:
-        payload = await request.json()
+        payload = json.loads(raw)
     except Exception as e:
         logger.error("Webhook payload parse failed: %s", e)
         return {"ok": True}  # Meta'nın retry'ını engelle
@@ -99,7 +124,9 @@ async def webhook_receive(request: Request, db: Session = Depends(get_db)):
                 }
 
                 for msg in messages:
-                    await _process_inbound_message(db, msg, contact_map)
+                    saved = await _process_inbound_message(db, msg, contact_map)
+                    if saved is not None:
+                        background.add_task(_after_inbound, saved)
 
                 # Status update geldi mi? (delivered, read, failed)
                 statuses = value.get("statuses", [])
@@ -117,21 +144,21 @@ async def webhook_receive(request: Request, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-async def _process_inbound_message(db: Session, msg: dict, contact_map: dict):
-    """Gelen tek bir mesajı DB'ye yaz + AI analizine gönder."""
+async def _process_inbound_message(db: Session, msg: dict, contact_map: dict) -> Optional[int]:
+    """Gelen tek bir mesajı DB'ye yaz; arka plan işi için mesaj id'sini döndür."""
     wa_id = msg.get("from")  # Müşterinin numarası
     wamid = msg.get("id")  # Meta mesaj ID
     msg_type = msg.get("type", "text")  # text, image, audio, document, ...
 
     if not wa_id or not wamid:
-        return
+        return None
 
     # Daha önce işlendi mi?
     existing = db.query(WhatsAppMessage).filter(
         WhatsAppMessage.meta_message_id == wamid
     ).first()
     if existing:
-        return
+        return None
 
     # Konuşma var mı?
     conv = db.query(WhatsAppConversation).filter(
@@ -196,18 +223,32 @@ async def _process_inbound_message(db: Session, msg: dict, contact_map: dict):
     conv.unread_count = (conv.unread_count or 0) + 1
 
     db.commit()
-    db.refresh(message)
-    db.refresh(conv)
+    return message.id
 
-    # Okundu olarak işaretle (Meta'da mavi tik)
+
+async def _after_inbound(message_id: int):
+    """Arka plan: okundu işareti + AI analizi. İstek oturumu kapandığı için
+    kendi veritabanı oturumunu açar."""
+    db = SessionLocal()
     try:
-        await whatsapp_client.mark_as_read(wamid)
-    except Exception:
-        pass
+        message = db.query(WhatsAppMessage).filter(WhatsAppMessage.id == message_id).first()
+        if not message:
+            return
+        conv = message.conversation
 
-    # AI analizi başlat (text mesajlar için)
-    if msg_type == "text" and content.strip():
-        await _run_ai_analysis(db, message, conv)
+        # Okundu olarak işaretle (Meta'da mavi tik)
+        try:
+            await whatsapp_client.mark_as_read(message.meta_message_id)
+        except Exception:
+            pass
+
+        # AI analizi (text mesajlar için)
+        if message.content_type == "text" and (message.content or "").strip():
+            await _run_ai_analysis(db, message, conv)
+    except Exception as e:
+        logger.exception("Inbound background job failed: %s", e)
+    finally:
+        db.close()
 
 
 async def _run_ai_analysis(db: Session, message: WhatsAppMessage, conv: WhatsAppConversation):

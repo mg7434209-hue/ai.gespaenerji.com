@@ -9,6 +9,8 @@ from calendar import monthrange
 from datetime import date, timedelta
 from typing import Optional, Tuple
 
+from app.timeutil import today_tr
+
 # Türkçe sayı sözcükleri (küçük sayılar süre metinlerinde sık geçer)
 WORD_NUMBERS = {
     "bir": 1, "iki": 2, "üç": 3, "uc": 3, "dört": 4, "dort": 4, "beş": 5, "bes": 5,
@@ -138,4 +140,4 @@ def parse_date(text: str) -> Optional[date]:
 
 
 def days_left(due: date, today: Optional[date] = None) -> int:
-    return (due - (today or date.today())).days
+    return (due - (today or today_tr())).days

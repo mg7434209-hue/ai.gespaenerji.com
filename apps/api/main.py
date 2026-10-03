@@ -22,6 +22,10 @@ from app.routers.legal import router as legal_router
 async def lifespan(app: FastAPI):
     # Başlangıçta tabloları oluştur + seed et
     print("🚀 Gespa OS başlatılıyor...")
+    problems = settings.production_problems()
+    if problems:
+        # Varsayılan gizli değerlerle canlıya ÇIKILMAZ — env düzeltilene dek açılmaz.
+        raise RuntimeError("Üretim ayarları eksik: " + "; ".join(problems))
     try:
         seed()
     except Exception as e:

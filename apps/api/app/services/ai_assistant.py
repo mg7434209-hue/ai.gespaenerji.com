@@ -10,6 +10,7 @@ Sonra confidence'a göre:
 - %70-90 → taslak olarak kaydet, onay bekle
 - %70 altı → sadece göster, ben yazarım
 """
+import asyncio
 import json
 import logging
 from typing import Optional
@@ -152,7 +153,9 @@ class AIAssistant:
 
             messages.append({"role": "user", "content": user_content})
 
-            response = self.client.messages.create(
+            # Senkron istemci olay döngüsünü kilitlemesin: iş parçacığında çalışır
+            response = await asyncio.to_thread(
+                self.client.messages.create,
                 model=self.model,
                 max_tokens=1024,
                 system=SYSTEM_PROMPT_TR,

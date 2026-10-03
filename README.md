@@ -45,8 +45,29 @@ ADMIN_PASSWORD=<güçlü-şifre>
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=...
+WHATSAPP_ACCESS_TOKEN=...
+WHATSAPP_PHONE_NUMBER_ID=...
+WHATSAPP_APP_SECRET=<Meta uygulama gizli anahtarı>
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=<rastgele>
 ENVIRONMENT=production
 ```
+
+**Üretim koruması:** `ENVIRONMENT=production` iken `JWT_SECRET` 32 karakterden kısa
+ya da varsayılansa, `ADMIN_PASSWORD` 12 karakterden kısa ya da varsayılansa veya
+`DATABASE_URL` yoksa uygulama **açılmaz** (log'da hangi değişkenin eksik olduğu yazar).
+
+**Admin şifresi:** veritabanındaki şifre her açılışta `ADMIN_PASSWORD` ile eşitlenir —
+şifreyi değiştirmek = Railway'de değişkeni değiştirip yeniden dağıtmak. `ADMIN_EMAIL`
+değişirse eski hesap devre dışı kalır (tek kullanıcı sistemi).
+
+**WhatsApp webhook:** her istek `X-Hub-Signature-256` imzasıyla doğrulanır
+(`WHATSAPP_APP_SECRET` = Meta App Dashboard → Settings → Basic → App Secret).
+Üretimde bu değişken yoksa webhook istekleri 403 ile reddedilir. Okundu işareti ve
+AI analizi yanıt döndükten sonra arka planda çalışır.
+
+**Saat:** "bugün" her yerde Türkiye saatidir (`app/timeutil.py`); Railway UTC çalışır.
+
+**Test:** `cd apps/api && pip install -r requirements.txt pytest && python -m pytest -q tests`
 
 **JWT_SECRET üretmek için:**
 ```bash
