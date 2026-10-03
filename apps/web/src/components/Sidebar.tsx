@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Map,
   Scale,
+  X,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '@/lib/auth'
@@ -25,12 +26,30 @@ const navItems = [
   { to: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 
-export function Sidebar() {
+export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
   const { user, logout } = useAuth()
   const location = useLocation()
 
   return (
-    <aside className="w-64 bg-slate-900/80 border-r border-slate-800 flex flex-col h-screen sticky top-0">
+    <>
+    {/* Mobilde çekmecenin arkasındaki karartma */}
+    <div
+      className={clsx(
+        'fixed inset-0 z-40 bg-black/60 lg:hidden transition-opacity',
+        open ? 'opacity-100' : 'opacity-0 pointer-events-none',
+      )}
+      onClick={onClose}
+      aria-hidden="true"
+    />
+    <aside
+      className={clsx(
+        'w-64 bg-slate-900 lg:bg-slate-900/80 border-r border-slate-800 flex flex-col h-screen',
+        // lg altı: ekran dışında bekleyen çekmece; lg ve üstü: sabit sütun
+        'fixed inset-y-0 left-0 z-50 transition-transform duration-200',
+        open ? 'translate-x-0' : '-translate-x-full',
+        'lg:sticky lg:top-0 lg:translate-x-0 lg:z-auto',
+      )}
+    >
       {/* Logo */}
       <div className="p-6 border-b border-slate-800">
         <div className="flex items-center gap-3">
@@ -41,6 +60,13 @@ export function Sidebar() {
             <div className="font-bold text-slate-100">Gespa OS</div>
             <div className="text-xs text-slate-400">v0.5.0</div>
           </div>
+          <button
+            onClick={onClose}
+            className="lg:hidden ml-auto p-2 -mr-2 rounded-lg text-slate-400 hover:bg-slate-800/60"
+            aria-label="Menüyü kapat"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -87,5 +113,6 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   )
 }
