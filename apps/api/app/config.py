@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # İkinci okuma / denetim modeli — boşsa legal_model kullanılır
     legal_review_model: str = ""
 
+    # Komuta ajanı (JARVIS) — JARVIS_MODEL / JARVIS_EFFORT / JARVIS_MAX_STEPS
+    jarvis_model: str = "claude-opus-5-5"
+    jarvis_effort: str = "low"          # low | medium | high | xhigh | max
+    jarvis_max_steps: int = 8           # bir soruda en çok kaç model çağrısı
+    jarvis_fallbacks: bool = True       # ret durumunda sunucu tarafı yedek model (beta)
+
     # WhatsApp Business API (Meta Cloud)
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""

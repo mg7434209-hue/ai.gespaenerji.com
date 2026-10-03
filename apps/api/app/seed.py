@@ -6,6 +6,7 @@ from app.models import User, Workspace, Agent
 
 # Tablolar create_all ile oluşacağı için modellerin import edilmesi şart
 from app import models_whatsapp  # noqa: F401
+from app import models_jarvis  # noqa: F401
 from app.models_legal import LegalAgent
 from app.legal_agents import LEGAL_AGENTS, build_system_prompt
 from app.auth.security import hash_password, verify_password

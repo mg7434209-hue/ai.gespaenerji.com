@@ -113,6 +113,31 @@ gespa-os/
 
 ---
 
+## 🤖 JARVIS — komuta ajanı (Faz 1: yalnız okur)
+
+Ana sayfanın en üstündeki sohbet kutusu. Soruyu Claude'a (tool use) verir; Claude
+Gespa OS veritabanını **yalnız okuyan** araçlarla sorgular ve gerçek veriden cevap verir
+("Bu hafta neyim var?" → ajanda + süreler + duruşmalar).
+
+- Araçlar `app/services/jarvis_tools.py` (`TOOLS` + `HANDLERS`): `get_agenda`,
+  `list_deadlines`, `list_matters`, `get_matter`, `list_workspaces`, `list_leads`,
+  `inbox_summary`. **Faz 1'de hiçbir araç yazmaz** (test denetler); yazma işleri Faz 2'de
+  onay adımıyla gelecek. Ajanda hesabı `services/agenda.py` ile `/api/legal/agenda` ortaktır.
+- Döngü `app/services/jarvis.py`: sabit sistem promptu (önbellek), "şu an" bilgisi her
+  kullanıcı mesajının başında (Türkiye saati), en çok `JARVIS_MAX_STEPS` model çağrısı.
+  Ret / API hatası / adım sınırı turu düz metinle kapatır.
+- Hafıza `jarvis_conversations` + `jarvis_messages`: her satır API'ye giden bir mesajın
+  BİREBİR kopyasıdır ve geçmiş **yalnız eklenir** (Opus 5.5 düşünme bloklarını sohbete
+  bağlar; geçmişi düzenlemek sonraki istekleri bozar). Uzayan sohbet budanmaz,
+  "Yeni sohbet" açılır.
+- Uçlar: `POST /api/jarvis/chat` · `GET /api/jarvis/conversations/latest` ·
+  `GET /api/jarvis/conversations/{id}` · `GET /api/jarvis/status`.
+- Ayarlar: `JARVIS_MODEL` (varsayılan `claude-opus-5-5`) · `JARVIS_EFFORT` (`low`) ·
+  `JARVIS_MAX_STEPS` (8) · `JARVIS_FALLBACKS` (`true`: ret durumunda sunucu tarafı yedek
+  model, beta — sorun çıkarırsa `false`). `ANTHROPIC_API_KEY` yoksa kutu "kapalı" yazar.
+
+---
+
 ## ⚖️ Hukuk Ofisi — avukat ajan serisi
 
 `/hukuk` menüsü, uzmanlık alanına göre ayrılmış **23 avukat ajanı** barındırır:

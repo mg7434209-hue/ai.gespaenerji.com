@@ -16,6 +16,7 @@ from app.routers.leads import router as leads_router
 from app.routers.agents import router as agents_router
 from app.routers.whatsapp import router as whatsapp_router
 from app.routers.legal import router as legal_router
+from app.routers.jarvis import router as jarvis_router
 
 
 @asynccontextmanager
@@ -64,6 +65,7 @@ app.include_router(leads_router)
 app.include_router(agents_router)
 app.include_router(whatsapp_router)
 app.include_router(legal_router)
+app.include_router(jarvis_router)
 
 
 @app.get("/api/health")

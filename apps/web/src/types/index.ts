@@ -287,3 +287,28 @@ export interface LegalAgenda {
     days_left: number
   }[]
 }
+
+// ── Komuta ajanı (JARVIS) ─────────────────────────────────────
+export interface JarvisMessage {
+  id: number
+  role: 'user' | 'assistant'
+  text: string
+  tools: string[]
+  created_at: string
+}
+
+export interface JarvisConversation {
+  id: number
+  channel: 'web' | 'whatsapp'
+  title: string | null
+  updated_at: string
+  messages: JarvisMessage[]
+}
+
+export interface JarvisChatResponse {
+  conversation_id: number
+  reply: string
+  tools: string[]
+  model: string | null
+  ok: boolean
+}
