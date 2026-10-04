@@ -36,6 +36,25 @@ class Settings(BaseSettings):
     jarvis_effort: str = "low"          # low | medium | high | xhigh | max
     jarvis_max_steps: int = 8           # bir soruda en çok kaç model çağrısı
     jarvis_fallbacks: bool = True       # ret durumunda sunucu tarafı yedek model (beta)
+    # Sahibin WhatsApp numarası (905XXXXXXXXX). Brifing buraya gider; bu numaradan
+    # gelen mesajlara müşteri asistanı cevap vermez.
+    jarvis_owner_phone: str = ""
+
+    # İki ticari site — salt okunur /api/os/summary (services/sites.py).
+    # Token, sitedeki OS_TOKEN ile AYNI değerdir.
+    gespa_site_url: str = "https://www.gespaenerji.com"
+    gespa_os_token: str = ""
+    gesm_site_url: str = "https://www.gesmarketim.com"
+    gesm_os_token: str = ""
+    # Sipariş defteri: sitelerin POST /api/ingest/orders belirteci (≥32 karakter).
+    # gespaenerji'deki OS_INGEST_TOKEN ile AYNI değer.
+    order_ingest_token: str = ""
+
+    # Sabah brifingi — BRIEF_* / JARVIS_BRIEF_MODEL
+    jarvis_brief_model: str = "claude-sonnet-5-5"
+    brief_cron_token: str = ""          # GitHub Actions'ın X-Brief-Token başlığı
+    brief_template_name: str = "sabah_brifingi"
+    brief_template_lang: str = "tr"
 
     # WhatsApp Business API (Meta Cloud)
     whatsapp_access_token: str = ""

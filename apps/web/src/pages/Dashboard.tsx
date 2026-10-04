@@ -1,6 +1,7 @@
 
 import { WhiskyHourCard } from '@/components/WhiskyHourCard'
 import { JarvisChat } from '@/components/JarvisChat'
+import { SiteCards } from '@/components/SiteCards'
 import { useEffect, useState } from 'react'
 import { TrendingUp, Users, Target, Zap, ArrowUpRight, ExternalLink, Globe, Scale, AlertTriangle, CalendarClock } from 'lucide-react'
 import clsx from 'clsx'
@@ -77,8 +78,8 @@ export function Dashboard() {
       {/* Komuta kutusu — JARVIS gerçek veriden cevap verir */}
       <JarvisChat />
 
-      {/* Hukuki süreler — kaçırılırsa hak kaybı olur, en üstte durur */}
-      {agenda && agenda.deadlines.length > 0 && <LegalAgendaCard agenda={agenda} />}
+      {/* Ana iş: iki ticari site */}
+      <SiteCards />
 
       {/* KPI Cards — Superonline */}
       <div>
@@ -197,6 +198,9 @@ export function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Hukuki süreler — kişisel ilgi alanı, ikinci planda */}
+      {agenda && agenda.deadlines.length > 0 && <LegalAgendaCard agenda={agenda} />}
 
       {/* Viski Saati 🥃 */}
       <div>
