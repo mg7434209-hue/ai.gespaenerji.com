@@ -162,3 +162,27 @@ def test_production_accepts_strong_values():
 
 def test_development_has_no_guard():
     assert Settings(environment="development", _env_file=None).production_problems() == []
+
+
+# ── Healthcheck ──────────────────────────────────────────────
+
+def test_health_ok_and_db_failure_returns_503():
+    import main
+    c = TestClient(main.app)
+    r = c.get("/api/health")
+    assert r.status_code == 200 and r.json()["status"] == "ok"
+
+    class Broken:
+        def connect(self):
+            raise RuntimeError("db yok")
+    with mock.patch.object(main, "engine", Broken()):
+        r = c.get("/api/health")
+    assert r.status_code == 503 and r.json()["status"] == "db_error"
+
+
+def test_railway_json_healthcheck():
+    import json as _j
+    from pathlib import Path
+    cfg = _j.loads((Path(__file__).resolve().parents[3] / "railway.json").read_text())
+    assert cfg["deploy"]["healthcheckPath"] == "/api/health"
+    assert cfg["build"]["builder"] == "DOCKERFILE"
