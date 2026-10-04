@@ -18,7 +18,7 @@ from app.models_legal import LegalConsultation, LegalDeadline, LegalMatter
 from app.models_whatsapp import WhatsAppConversation
 from app.services import agenda as agenda_svc
 from app.services import sites
-from app.timeutil import today_tr
+from app.timeutil import day_label, today_tr, ts_label
 
 MAX_ROWS = 50
 
@@ -95,7 +95,9 @@ def get_agenda(db: Session, inp: dict) -> dict:
     rows = [d for d in a["deadlines"] if d.due_date < today or d.due_date >= start]
     return {
         "today": today,
-        "range": {"start": start, "end": end},
+        "today_label": day_label(today),
+        "range": {"start": start, "end": end,
+                  "label": f"{day_label(start)} – {day_label(end)}"},
         "overdue_count": len([d for d in rows if d.due_date < today]),
         "deadlines": [agenda_svc.deadline_dict(d, today) for d in rows[:MAX_ROWS]],
         "hearings": a["hearings"][:MAX_ROWS],
@@ -149,6 +151,7 @@ def list_matters(db: Session, inp: dict) -> dict:
                 "stage": m.stage, "role": m.role, "counterparty": m.counterparty,
                 "court": m.court, "reference": m.reference,
                 "next_hearing": m.next_hearing,
+                "next_hearing_label": day_label(m.next_hearing) if m.next_hearing else None,
                 "hearing_days_left": (m.next_hearing - today).days if m.next_hearing else None,
                 "open_deadlines": open_counts.get(m.id, 0),
             }
@@ -227,7 +230,8 @@ def list_leads(db: Session, inp: dict) -> dict:
         "leads": [
             {"id": l.id, "workspace": ws, "name": l.full_name, "status": l.status,
              "source": l.source, "city": l.city, "interest": l.package_interest,
-             "created_at": l.created_at, "last_contact_at": l.last_contact_at,
+             "created_at": l.created_at, "created_label": ts_label(l.created_at),
+             "last_contact_at": l.last_contact_at,
              "notes": (l.notes or "")[:300]}
             for l, ws in rows
         ],
@@ -277,8 +281,13 @@ def site_orders(db: Session, inp: dict) -> dict:
     o = data.get("orders", {})
     return {"site": site, "days": o.get("days"), "count": o.get("count"),
             "summary": {k: v for k, v in o.items() if k not in ("items", "days", "count")},
-            "orders": o.get("items", [])[:_int(inp.get("limit"), "limit", 1, 50, 20)],
+            "orders": [_with_label(x) for x in o.get("items", [])[:_int(inp.get("limit"), "limit", 1, 50, 20)]],
             "note": "Alıcı kişisel bilgileri bu kaynakta yoktur (KVKK)."}
+
+
+def _with_label(order: dict) -> dict:
+    """Sipariş zamanına Türkiye saatiyle etiket ekler (siteler UTC ISO yazar)."""
+    return {**order, "created_label": ts_label(order.get("createdAt", ""))}
 
 
 def site_catalog(db: Session, inp: dict) -> dict:

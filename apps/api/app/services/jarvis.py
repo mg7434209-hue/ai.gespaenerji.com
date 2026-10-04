@@ -15,7 +15,7 @@ Kurallar:
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import anthropic
@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models_jarvis import JarvisConversation, JarvisMessage
 from app.services.jarvis_tools import TOOLS, ToolInputError, run_tool
-from app.timeutil import now_tr
+from app.timeutil import day_label, day_label_long, now_tr
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,6 @@ logger = logging.getLogger(__name__)
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_TOKENS = 16000
 
-GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-AYLAR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz",
-         "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
 
 SYSTEM_PROMPT = """Sen JARVIS'sin: Mustafa Göksoy'un kişisel komuta asistanı (Gespa OS).
 Ana işi iki ticari site: gespaenerji.com (anahtar teslim GES + online satış) ve gesmarketim.com (solar e-ticaret). Önceliğin bu iki sitenin siparişleri, ürün/fiyat/stok durumu ve onay bekleyen işleri. Hukuk dosyaları Mustafa'nın kişisel ilgi alanıdır; yalnız sorulursa ya da tarihi geçen bir süre varsa öne çıkar.
@@ -54,7 +51,7 @@ Nasıl çalışırsın:
 Yanıt biçimi:
 - Türkçe, kısa ve doğrudan.
 - Kısa maddeler kullan. Tablo ve başlık kullanma: yanıt WhatsApp'ta da okunuyor.
-- Tarihleri "6 Ekim Pzt" gibi kısa yaz; kalan gün sayısını parantezde ver."""
+- Haftanın gününü ASLA kendin hesaplama. Gün adı gereken her tarihte araç çıktısındaki hazır etiketi (due_label, date_label, created_label, today_label…) ya da [Şu an] satırını AYNEN kullan; etiketi olmayan bir tarihi gün adı yazmadan yalnız "6 Eki" diye yaz. Kalan gün sayısını parantezde ver."""
 
 
 @dataclass
@@ -85,10 +82,14 @@ def get_client() -> anthropic.Anthropic:
 
 
 def now_line(channel: str) -> str:
+    """Gün adları ve hafta sınırları KODDAN gelir; model hesaplamaz."""
     n = now_tr()
+    today = n.date()
+    monday = today - timedelta(days=today.weekday())
     kanal = "WhatsApp" if channel == "whatsapp" else "web"
-    return (f"[Şu an: {n.day} {AYLAR[n.month - 1]} {n.year} {GUNLER[n.weekday()]}, "
-            f"saat {n:%H:%M} (Türkiye) · kanal: {kanal}]")
+    return (f"[Şu an: {day_label_long(today)}, saat {n:%H:%M} (Türkiye) · "
+            f"dün: {day_label(today - timedelta(days=1))} · yarın: {day_label(today + timedelta(days=1))} · "
+            f"bu hafta: {day_label(monday)} – {day_label(monday + timedelta(days=6))} · kanal: {kanal}]")
 
 
 def _dump(block: Any) -> dict:

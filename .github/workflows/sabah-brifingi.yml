@@ -42,7 +42,8 @@ jobs:
           TOKEN: ${{ secrets.BRIEF_CRON_TOKEN }}
           BASE: ${{ vars.GESPA_OS_URL || 'https://os.gespaenerji.com' }}
         run: |
-          if [ -z "$TOKEN" ]; then echo "::error::BRIEF_CRON_TOKEN secret'ı tanımlı değil"; exit 1; fi
+          # Brifing henüz kurulmadıysa (secret yok) her sabah hata e-postası üretme
+          if [ -z "$TOKEN" ]; then echo "::notice::BRIEF_CRON_TOKEN tanımlı değil — brifing kapalı, atlandı"; exit 0; fi
           # Uyuyan servis ilk istekte uyanır; bağlantı/5xx hatalarında yeniden dene
           code=$(curl -sS -o resp.json -w '%{http_code}' \
             --retry 5 --retry-delay 20 --retry-all-errors --max-time 120 \

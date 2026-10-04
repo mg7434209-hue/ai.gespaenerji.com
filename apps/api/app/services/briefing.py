@@ -36,7 +36,7 @@ from app.models_whatsapp import WhatsAppConversation, WhatsAppMessage
 from app.services import jarvis, sites
 from app.services import jarvis_tools as tools
 from app.services.whatsapp_client import whatsapp_client
-from app.timeutil import now_tr, today_tr
+from app.timeutil import day_label, now_tr, today_tr
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +57,6 @@ Biçim:
 - Sonra varsa: dikkat bekleyen WhatsApp konuşmaları.
 - Hukuk yalnız "legal" bölümünde gecikmiş ya da bugün dolan süre varsa tek satır (⚠ ile); yoksa hiç anma.
 - Kısa maddeler; tablo ve başlık yok. En çok 1500 karakter."""
-
-_AY = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"]
-_GUN = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
-
-
-def _d(v) -> str:
-    return f"{v.day} {_AY[v.month - 1]} {_GUN[v.weekday()]}"
-
 
 def collect(db: Session) -> dict:
     """Brifing verisi — JARVIS araçlarıyla AYNI kaynak (sayılar birbirini tutar).
@@ -134,13 +126,13 @@ def summary_line(data: dict) -> str:
 
 def date_label(data: dict) -> str:
     """Şablondaki {{1}} — "4 Eki Cmt"."""
-    return _clean_param(_d(data["today"]), 40)
+    return _clean_param(day_label(data["today"]), 40)
 
 
 def plain_text(data: dict) -> str:
     """Model olmadan da gönderilebilen, veriden kurulan tam brifing."""
     c = counts(data)
-    lines = [f"Günaydın — {_d(data['today'])}"]
+    lines = [f"Günaydın — {day_label(data['today'])}"]
     for card in data["sites"]:
         lines += ["", card["label"] + ":"]
         if not card.get("ok"):
