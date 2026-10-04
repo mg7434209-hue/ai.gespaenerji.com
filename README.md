@@ -150,6 +150,12 @@ JARVIS'in önceliği iki ticari sitedir; hukuk kişisel ilgi alanı olarak ikinc
   `GESM_SITE_URL` (https://www.gesmarketim.com) + `GESM_OS_TOKEN`. Token, sitenin Railway'deki
   `OS_TOKEN` değeriyle AYNIDIR (≥32 karakter). Yönetici şifresi kullanılmaz.
 - Faz A yalnız okur. Fiyat/stok/kampanya değişikliği (Faz B) onay adımlı GitHub PR'ı olacak.
+- **Sipariş defteri (kalıcı):** gespaenerji her sipariş durum değişikliğinde kişisel verisi
+  ayıklanmış kaydı `POST /api/ingest/orders` (`X-Ingest-Token` = `ORDER_INGEST_TOKEN`, ≥32
+  karakter; sitedeki `OS_INGEST_TOKEN` ile aynı) ile gönderir → `site_orders` tablosu,
+  (site, ref) tekil. Defter açıkken gespaenerji siparişleri sitenin özetinden değil buradan
+  okunur (site uyusa ya da dağıtımda dosyası silinse de). Uç izin listesi dışı alanları
+  (ör. `buyer`) atar; tabloda ad/telefon/e-posta/adres/TCKN alanı YOKTUR.
 
 ---
 

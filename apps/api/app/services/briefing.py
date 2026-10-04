@@ -65,7 +65,7 @@ def collect(db: Session) -> dict:
     agenda = tools.get_agenda(db, {"start_date": str(today), "end_date": str(today)})
     return {
         "today": today,
-        "sites": [sites.card(s, sites.fetch_summary(s, fresh=True)) for s in sites.SITES],
+        "sites": [sites.card(s, sites.summary_with_ledger(db, s, fresh=True)) for s in sites.SITES],
         # Hukuk ikinci planda: yalnız gecikmiş ve bugün dolan süreler
         "legal": [d for d in agenda["deadlines"] if d["due_date"] <= today],
         "inbox": tools.inbox_summary(db, {}),

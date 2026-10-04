@@ -268,20 +268,22 @@ def _site(v: Any) -> str:
 
 
 def site_overview(db: Session, inp: dict) -> dict:
-    return {"sites": [sites.card(s, sites.fetch_summary(s)) for s in SITE_ENUM]}
+    return {"sites": [sites.card(s, sites.summary_with_ledger(db, s)) for s in SITE_ENUM]}
 
 
 def site_orders(db: Session, inp: dict) -> dict:
     site = _site(inp.get("site"))
     if not site:
         raise ToolInputError("site gerekli: gespaenerji ya da gesmarketim")
-    data = sites.fetch_summary(site)
-    if "error" in data:
+    data = sites.summary_with_ledger(db, site)
+    if "error" in data and "orders" not in data:
         return {"site": site, "error": data["error"]}
     o = data.get("orders", {})
     return {"site": site, "days": o.get("days"), "count": o.get("count"),
             "summary": {k: v for k, v in o.items() if k not in ("items", "days", "count")},
             "orders": [_with_label(x) for x in o.get("items", [])[:_int(inp.get("limit"), "limit", 1, 50, 20)]],
+            "source": ("Gespa OS sipariş defteri (kalıcı)" if o.get("source") == "ledger"
+                       else "sitenin canlı özeti (Volume yoksa dağıtımda silinen dosya)"),
             "note": "Alıcı kişisel bilgileri bu kaynakta yoktur (KVKK)."}
 
 

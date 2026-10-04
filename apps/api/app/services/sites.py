@@ -82,7 +82,13 @@ def card(site: str, data: dict) -> dict:
     """Ana sayfa kartı ve brifing için kısa özet (her iki sitede aynı alanlar)."""
     base = {"site": site, "label": SITES[site]["label"]}
     if "error" in data:
-        return {**base, "ok": False, "error": data["error"]}
+        out = {**base, "ok": False, "error": data["error"]}
+        if "orders" in data:  # defter: özet alınamasa da siparişler görünür
+            o = data["orders"]
+            out.update(orders_30d=o.get("count", 0),
+                       orders_24h=_last_24h(o.get("items", []), "createdAt"),
+                       orders_source=o.get("source"))
+        return out
     if site == "gespaenerji":
         orders = data.get("orders", {})
         by = orders.get("byStatus", {})
@@ -93,6 +99,8 @@ def card(site: str, data: dict) -> dict:
             "orders_paid_30d": by.get("paid", 0),
             "orders_pending_30d": by.get("pending", 0),
             "orders_24h": _last_24h(orders.get("items", []), "createdAt"),
+            "orders_source": orders.get("source", "summary"),
+            "mail_failed_30d": orders.get("mailFailed", 0),
             "qa_pending": data.get("qa", {}).get("pending", 0),
             "alerts": len(alerts),
             "alert_items": alerts[:10],
@@ -127,3 +135,47 @@ def _last_24h(items: list, key: str) -> int:
         except ValueError:
             continue
     return n
+
+
+# ── Sipariş defteri (Gespa OS Postgres) ─────────────────────
+# gespaenerji siparişleri defter açıksa (ORDER_INGEST_TOKEN) sitenin özetinden
+# DEĞİL buradan okunur: site dosyası dağıtımda silinir, defter kalır; site
+# uyusa ya da özet alınamasa da siparişler görünür.
+LEDGER_SITES = {"gespaenerji"}
+
+
+def ledger_enabled(site: str) -> bool:
+    return site in LEDGER_SITES and len(settings.order_ingest_token) >= 32
+
+
+def ledger_orders(db, site: str, days: int = 30) -> dict:
+    """Defterden, sitenin özetindeki `orders` ile AYNI biçim."""
+    from datetime import datetime, timedelta
+    from app.models_orders import SiteOrder
+    since = datetime.utcnow() - timedelta(days=days)
+    rows = (db.query(SiteOrder)
+            .filter(SiteOrder.site == site, SiteOrder.created_at >= since)
+            .order_by(SiteOrder.created_at.desc()).all())
+    by: dict = {}
+    for r in rows:
+        by[r.status or "?"] = by.get(r.status or "?", 0) + 1
+    return {
+        "days": days, "count": len(rows), "byStatus": by, "source": "ledger",
+        "mailFailed": sum(1 for r in rows if r.mail_failed),
+        "items": [{
+            "ref": r.ref, "channel": r.channel, "status": r.status,
+            "createdAt": (r.created_at.isoformat() + "Z") if r.created_at else None,
+            "resolvedAt": (r.resolved_at.isoformat() + "Z") if r.resolved_at else None,
+            "totalTL": r.total_tl, "paidTL": r.paid_tl, "desc": r.description,
+            "taksit": r.taksit, "errorCode": r.error_code, "mailFailed": r.mail_failed,
+            "items": r.items or [],
+        } for r in rows[:50]],
+    }
+
+
+def summary_with_ledger(db, site: str, **kw) -> dict:
+    """Sitenin özeti; defter açıksa `orders` defterden gelir (özet alınamasa da)."""
+    data = fetch_summary(site, **kw)
+    if db is None or not ledger_enabled(site):
+        return data
+    return {**data, "orders": ledger_orders(db, site)}

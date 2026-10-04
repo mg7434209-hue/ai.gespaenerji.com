@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     gespa_os_token: str = ""
     gesm_site_url: str = "https://www.gesmarketim.com"
     gesm_os_token: str = ""
+    # Sipariş defteri: sitelerin POST /api/ingest/orders belirteci (≥32 karakter).
+    # gespaenerji'deki OS_INGEST_TOKEN ile AYNI değer.
+    order_ingest_token: str = ""
 
     # Sabah brifingi — BRIEF_* / JARVIS_BRIEF_MODEL
     jarvis_brief_model: str = "claude-sonnet-5-5"

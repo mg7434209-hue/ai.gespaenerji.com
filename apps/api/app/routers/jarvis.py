@@ -102,9 +102,10 @@ def get_conversation(conv_id: int, db: Session = Depends(get_db), user: User = D
 # ── İki ticari site ──────────────────────────────────────────
 
 @router.get("/sites")
-def sites_cards(fresh: bool = False, user: User = Depends(get_current_user)):
+def sites_cards(fresh: bool = False, db: Session = Depends(get_db),
+                user: User = Depends(get_current_user)):
     """Ana sayfa kartları: gespaenerji.com + gesmarketim.com kısa özeti."""
-    return {"sites": [sites.card(s, sites.fetch_summary(s, fresh=fresh)) for s in sites.SITES]}
+    return {"sites": [sites.card(s, sites.summary_with_ledger(db, s, fresh=fresh)) for s in sites.SITES]}
 
 
 # ── Sabah brifingi ───────────────────────────────────────────
