@@ -12,7 +12,7 @@ from app.database import get_db
 from app.models import User
 from app.models_jarvis import JarvisConversation, JarvisMessage
 from app.config import settings
-from app.services import briefing, jarvis
+from app.services import briefing, jarvis, sites
 
 router = APIRouter(prefix="/api/jarvis", tags=["jarvis"])
 
@@ -97,6 +97,14 @@ def get_conversation(conv_id: int, db: Session = Depends(get_db), user: User = D
     if not conv:
         raise HTTPException(404, "Sohbet bulunamadı")
     return _conv_out(conv, db)
+
+
+# ── İki ticari site ──────────────────────────────────────────
+
+@router.get("/sites")
+def sites_cards(fresh: bool = False, user: User = Depends(get_current_user)):
+    """Ana sayfa kartları: gespaenerji.com + gesmarketim.com kısa özeti."""
+    return {"sites": [sites.card(s, sites.fetch_summary(s, fresh=fresh)) for s in sites.SITES]}
 
 
 # ── Sabah brifingi ───────────────────────────────────────────

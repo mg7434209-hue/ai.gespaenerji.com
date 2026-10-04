@@ -312,3 +312,21 @@ export interface JarvisChatResponse {
   model: string | null
   ok: boolean
 }
+
+// ── İki ticari site (Gespa OS özeti) ─────────────────────────
+export interface SiteCard {
+  site: 'gespaenerji' | 'gesmarketim'
+  label: string
+  ok: boolean
+  error?: string
+  orders_24h?: number
+  orders_30d?: number
+  orders_pending_30d?: number
+  orders_unpaid_30d?: number
+  qa_pending?: number
+  alerts?: number
+  alert_items?: { type: string; id?: string; name?: string; stock?: number; endsAt?: string }[]
+  out_of_stock?: number
+  no_image?: number
+  usd_try?: number
+}

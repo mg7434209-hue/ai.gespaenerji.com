@@ -18,7 +18,8 @@ from app.config import settings
 from app.models_jarvis import JarvisRun
 from app.models_legal import LegalDeadline, LegalMatter
 from app.models_whatsapp import WhatsAppConversation, WhatsAppMessage
-from app.services import briefing
+from app.services import briefing, sites
+from test_sites import GESM, GESPA
 
 OWNER = "905551234567"
 
@@ -27,6 +28,14 @@ def _at(h, m=0):
     """Bugün Türkiye saatiyle h:m."""
     n = timeutil.now_tr()
     return n.replace(hour=h, minute=m, second=0, microsecond=0)
+
+
+@pytest.fixture(autouse=True)
+def site_data():
+    """Siteler ağa çıkmadan, sabit özetle okunur."""
+    with mock.patch.object(sites, "fetch_summary",
+                           side_effect=lambda s, **k: GESPA if s == "gespaenerji" else GESM):
+        yield
 
 
 @pytest.fixture()
@@ -60,15 +69,26 @@ def test_summary_line_is_single_line_template_param(db, data):
     d = briefing.collect(db)
     line = briefing.summary_line(d)
     assert "\n" not in line and "\t" not in line and "    " not in line
-    assert line == "1 süre geçti, 7 gün içinde 1 süre, 1 duruşma."
+    assert line == ("gespaenerji: 1 yeni sipariş, 1 bekleyen ödeme, 1 soru onay bekliyor, 1 ürün uyarısı; "
+                    "gesmarketim: 0 yeni sipariş, 1 ödenmemiş, 5 ürün stokta yok; hukuk: 1 süre.")
+    assert len(line) <= 300
     assert "\n" not in briefing.date_label(d)
 
 
-def test_plain_text_mentions_overdue_and_lead_source(db, data):
+def test_plain_text_is_site_first_legal_one_line(db, data):
     text = briefing.plain_text(briefing.collect(db))
-    assert "⚠ İstinaf dilekçesi" in text and "Kira davası" in text
-    assert "Gespa OS'te kayıtlı lead yok" in text
-    assert "tahminidir" in text
+    assert text.index("gespaenerji.com:") < text.index("gesmarketim.com:") < text.index("⚠ Hukuk")
+    assert "UNV: stok azaldı (1 adet)" in text and "stokta olmayan ürün: 5" in text
+    # Gelecek süreler ve duruşmalar brifinge girmez; yalnız geçen/bugün dolan
+    assert "Ödeme emrine itiraz" not in text and "Kira davası" not in text
+    assert "İstinaf dilekçesi" in text
+
+
+def test_site_error_is_reported_not_zero(db):
+    with mock.patch.object(sites, "fetch_summary", return_value={"error": "siteye ulaşılamadı (ConnectError)"}):
+        d = briefing.collect(db)
+    assert "veri alınamadı" in briefing.summary_line(d)
+    assert "veri alınamadı (siteye ulaşılamadı" in briefing.plain_text(d)
 
 
 def test_outside_window_skips(db, data, wa):

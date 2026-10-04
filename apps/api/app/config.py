@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # gelen mesajlara müşteri asistanı cevap vermez.
     jarvis_owner_phone: str = ""
 
+    # İki ticari site — salt okunur /api/os/summary (services/sites.py).
+    # Token, sitedeki OS_TOKEN ile AYNI değerdir.
+    gespa_site_url: str = "https://www.gespaenerji.com"
+    gespa_os_token: str = ""
+    gesm_site_url: str = "https://www.gesmarketim.com"
+    gesm_os_token: str = ""
+
     # Sabah brifingi — BRIEF_* / JARVIS_BRIEF_MODEL
     jarvis_brief_model: str = "claude-sonnet-5-5"
     brief_cron_token: str = ""          # GitHub Actions'ın X-Brief-Token başlığı

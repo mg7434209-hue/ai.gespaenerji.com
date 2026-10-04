@@ -1,5 +1,8 @@
 """Sabah brifingi — her gün 08:00 (Türkiye) WhatsApp'a ajanda + süreler + açık işler.
 
+Odak: gespaenerji.com ve gesmarketim.com (siparişler, soru-cevap, ürün
+uyarıları); hukuk yalnız gecikmiş/bugün dolan süre varsa tek satır.
+
 Tetik: GitHub Actions (`.github/workflows/sabah-brifingi.yml`) 07:50'de başlar,
 08:00'i bekler ve `POST /api/jarvis/briefing/run` çağırır; 08:30'da yedek
 tetik vardır. Uygulama uyku modunda olsa da istek onu uyandırır; uygulama
@@ -30,7 +33,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models_jarvis import JarvisRun
 from app.models_whatsapp import WhatsAppConversation, WhatsAppMessage
-from app.services import jarvis
+from app.services import jarvis, sites
 from app.services import jarvis_tools as tools
 from app.services.whatsapp_client import whatsapp_client
 from app.timeutil import now_tr, today_tr
@@ -46,13 +49,14 @@ WA_LIMIT = 4096
 BRIEF_SYSTEM = """Sen JARVIS'sin ve Mustafa Göksoy'a sabah brifingini yazıyorsun. Metin WhatsApp'ta okunacak.
 Sana bugünün verisi JSON olarak verilecek. Yalnız bu veriye dayan; veride olmayan hiçbir şeyi ekleme.
 
+Odak iki ticari site: gespaenerji.com ve gesmarketim.com.
 Biçim:
 - İlk satır: "Günaydın — <gün ay, haftanın günü>".
-- Sonra en önemli şeyler önce: tarihi geçmiş süreler (⚠ ile), bugünkü ve önümüzdeki 7 gündeki süreler, duruşmalar, yeni lead'ler, dikkat bekleyen WhatsApp konuşmaları.
-- Kısa maddeler; tablo ve başlık yok. Tarihleri "6 Eki Pzt (2 gün)" gibi yaz.
-- Boş bölümü tek satırla geç ("Önümüzdeki 7 günde duruşma yok" gibi). Lead verisi boşsa "lead yok" deme: Gespa OS'te kayıtlı lead olmadığını ve diğer sitelerin bağlı olmadığını söyle.
-- Hak düşürücü süre varsa en sonda tek satır: süre tarihleri tahminidir, resmî/adli tatil hesaba katılmaz.
-- En çok 1500 karakter."""
+- Her site için kısa bir bölüm: son 24 saatteki siparişler (varsa tutar ve ürün), ödenmemiş/bekleyen siparişler, onay bekleyen soru-cevaplar, ürün uyarıları (stok, fiyat, görsel, kampanya).
+- Bir sitenin verisi alınamadıysa (error) bunu tek satırla söyle; "sipariş yok" deme.
+- Sonra varsa: dikkat bekleyen WhatsApp konuşmaları.
+- Hukuk yalnız "legal" bölümünde gecikmiş ya da bugün dolan süre varsa tek satır (⚠ ile); yoksa hiç anma.
+- Kısa maddeler; tablo ve başlık yok. En çok 1500 karakter."""
 
 _AY = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"]
 _GUN = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
@@ -63,31 +67,31 @@ def _d(v) -> str:
 
 
 def collect(db: Session) -> dict:
-    """Brifing verisi — JARVIS araçlarıyla AYNI kaynak (sayılar birbirini tutar)."""
+    """Brifing verisi — JARVIS araçlarıyla AYNI kaynak (sayılar birbirini tutar).
+    Siteler TAZE okunur (önbellek atlanır)."""
     today = today_tr()
-    until = today + timedelta(days=7)
+    agenda = tools.get_agenda(db, {"start_date": str(today), "end_date": str(today)})
     return {
         "today": today,
-        "until": until,
-        "agenda": tools.get_agenda(db, {"start_date": str(today), "end_date": str(until)}),
-        "matters": tools.list_matters(db, {"status": "open"}),
-        "new_leads": tools.list_leads(db, {"status": "new", "since_days": 7}),
+        "sites": [sites.card(s, sites.fetch_summary(s, fresh=True)) for s in sites.SITES],
+        # Hukuk ikinci planda: yalnız gecikmiş ve bugün dolan süreler
+        "legal": [d for d in agenda["deadlines"] if d["due_date"] <= today],
         "inbox": tools.inbox_summary(db, {}),
     }
 
 
 def counts(data: dict) -> dict:
-    a = data["agenda"]
+    by = {c["site"]: c for c in data["sites"]}
+    g, m = by.get("gespaenerji", {}), by.get("gesmarketim", {})
     today = data["today"]
-    dl = a["deadlines"]
     return {
-        "overdue": len([d for d in dl if d["due_date"] < today]),
-        "today": len([d for d in dl if d["due_date"] == today]),
-        "upcoming": len([d for d in dl if d["due_date"] > today]),
-        "hearings": len(a["hearings"]),
-        "open_matters": data["matters"]["count"],
-        "new_leads": data["new_leads"]["count"],
-        "lead_table_total": data["new_leads"]["data_source"]["table_total"],
+        "gespa_ok": g.get("ok", False), "gesm_ok": m.get("ok", False),
+        "gespa_orders_24h": g.get("orders_24h", 0), "gesm_orders_24h": m.get("orders_24h", 0),
+        "gespa_pending": g.get("orders_pending_30d", 0), "gesm_unpaid": m.get("orders_unpaid_30d", 0),
+        "qa_pending": g.get("qa_pending", 0),
+        "gespa_alerts": g.get("alerts", 0), "gesm_out_of_stock": m.get("out_of_stock", 0),
+        "legal_overdue": len([d for d in data["legal"] if d["due_date"] < today]),
+        "legal_today": len([d for d in data["legal"] if d["due_date"] == today]),
         "attention": data["inbox"]["needs_attention_count"],
     }
 
@@ -102,21 +106,30 @@ def _clean_param(s: str, limit: int) -> str:
 def summary_line(data: dict) -> str:
     """Şablondaki {{2}} — veriden, tek satır."""
     c = counts(data)
-    parts = []
-    if c["overdue"]:
-        parts.append(f"{c['overdue']} süre geçti")
-    if c["today"]:
-        parts.append(f"bugün {c['today']} süre doluyor")
-    if c["upcoming"]:
-        parts.append(f"7 gün içinde {c['upcoming']} süre")
-    if c["hearings"]:
-        parts.append(f"{c['hearings']} duruşma")
-    if c["new_leads"]:
-        parts.append(f"{c['new_leads']} yeni lead")
-    if c["attention"]:
-        parts.append(f"{c['attention']} WhatsApp konuşması dikkat bekliyor")
-    line = ", ".join(parts) + "." if parts else "önümüzdeki 7 gün için kayıtlı süre ve duruşma yok."
-    return _clean_param(line, 300)
+    if c["gespa_ok"]:
+        g = [f"{c['gespa_orders_24h']} yeni sipariş"]
+        if c["gespa_pending"]:
+            g.append(f"{c['gespa_pending']} bekleyen ödeme")
+        if c["qa_pending"]:
+            g.append(f"{c['qa_pending']} soru onay bekliyor")
+        if c["gespa_alerts"]:
+            g.append(f"{c['gespa_alerts']} ürün uyarısı")
+        gs = "gespaenerji: " + ", ".join(g)
+    else:
+        gs = "gespaenerji: veri alınamadı"
+    if c["gesm_ok"]:
+        m = [f"{c['gesm_orders_24h']} yeni sipariş"]
+        if c["gesm_unpaid"]:
+            m.append(f"{c['gesm_unpaid']} ödenmemiş")
+        if c["gesm_out_of_stock"]:
+            m.append(f"{c['gesm_out_of_stock']} ürün stokta yok")
+        ms = "gesmarketim: " + ", ".join(m)
+    else:
+        ms = "gesmarketim: veri alınamadı"
+    parts = [gs, ms]
+    if c["legal_overdue"] or c["legal_today"]:
+        parts.append(f"hukuk: {c['legal_overdue'] + c['legal_today']} süre")
+    return _clean_param("; ".join(parts) + ".", 300)
 
 
 def date_label(data: dict) -> str:
@@ -126,38 +139,50 @@ def date_label(data: dict) -> str:
 
 def plain_text(data: dict) -> str:
     """Model olmadan da gönderilebilen, veriden kurulan tam brifing."""
-    today = data["today"]
-    a = data["agenda"]
     c = counts(data)
-    lines = [f"Günaydın — {_d(today)}", ""]
-    dl = a["deadlines"]
-    if dl:
-        lines.append("Süreler:")
-        for d in dl:
-            left = d["days_left"]
-            when = f"{abs(left)} gün geçti" if left < 0 else ("bugün" if left == 0 else f"{left} gün")
-            mark = "⚠ " if left < 0 else ""
-            lines.append(f"• {mark}{d['title']} — {_d(d['due_date'])} ({when})")
-    else:
-        lines.append("Önümüzdeki 7 günde açık süre yok.")
-    if a["hearings"]:
-        lines.append("Duruşmalar:")
-        for h in a["hearings"]:
-            lines.append(f"• {h['title']} — {_d(h['date'])} ({h['days_left']} gün)")
-    else:
-        lines.append("Önümüzdeki 7 günde duruşma yok.")
-    lines.append(f"Açık hukuk dosyası: {c['open_matters']}")
-    if c["new_leads"]:
-        lines.append(f"Son 7 günde yeni lead: {c['new_leads']}")
-    elif c["lead_table_total"] == 0:
-        lines.append("Gespa OS'te kayıtlı lead yok (diğer sitelerin başvuruları bağlı değil).")
-    else:
-        lines.append("Son 7 günde Gespa OS'e yeni lead girilmedi.")
+    lines = [f"Günaydın — {_d(data['today'])}"]
+    for card in data["sites"]:
+        lines += ["", card["label"] + ":"]
+        if not card.get("ok"):
+            lines.append(f"• veri alınamadı ({card.get('error', '?')})")
+            continue
+        lines.append(f"• son 24 saatte {card['orders_24h']} sipariş · 30 günde {card['orders_30d']}")
+        if card["site"] == "gespaenerji":
+            if card["orders_pending_30d"]:
+                lines.append(f"• ödemesi tamamlanmamış: {card['orders_pending_30d']}")
+            if card["qa_pending"]:
+                lines.append(f"• onay bekleyen soru-cevap: {card['qa_pending']}")
+            for a in card.get("alert_items", [])[:5]:
+                lines.append(f"• ⚠ {_alert_text(a)}")
+        else:
+            if card["orders_unpaid_30d"]:
+                lines.append(f"• ödenmemiş sipariş: {card['orders_unpaid_30d']}")
+            if card["out_of_stock"]:
+                lines.append(f"• stokta olmayan ürün: {card['out_of_stock']}")
+            if card["no_image"]:
+                lines.append(f"• görseli olmayan ürün: {card['no_image']}")
     if c["attention"]:
-        lines.append(f"Dikkat bekleyen WhatsApp konuşması: {c['attention']}")
-    if dl:
-        lines += ["", "Süre tarihleri tahminidir; resmî/adli tatil hesaba katılmaz."]
+        lines += ["", f"Dikkat bekleyen WhatsApp konuşması: {c['attention']}"]
+    if data["legal"]:
+        names = ", ".join(d["title"] for d in data["legal"][:3])
+        lines += ["", f"⚠ Hukuk: {len(data['legal'])} süre geçti/bugün doluyor ({names}). Tarihler tahminidir."]
     return "\n".join(lines)
+
+
+_ALERT = {
+    "no_price": "fiyatı yok", "no_image": "görseli yok", "low_stock": "stok azaldı",
+    "out_of_stock": "tükendi", "campaign_ending": "kampanya bitiyor",
+    "old_price_without_campaign": "kampanya bitti, eski fiyat (oldPrice) duruyor",
+}
+
+
+def _alert_text(a: dict) -> str:
+    what = _ALERT.get(a.get("type"), a.get("type", "uyarı"))
+    if a.get("type") == "low_stock":
+        what += f" ({a.get('stock')} adet)"
+    if a.get("type") == "campaign_ending":
+        return f"Kampanya bitiyor: {a.get('endsAt')}"
+    return f"{a.get('name') or a.get('id')}: {what}"
 
 
 def compose(data: dict, client: Optional[anthropic.Anthropic] = None) -> str:

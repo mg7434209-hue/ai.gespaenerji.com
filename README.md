@@ -138,6 +138,21 @@ Gespa OS veritabanını **yalnız okuyan** araçlarla sorgular ve gerçek veride
 
 ---
 
+## 🌐 Siteler — gespaenerji.com + gesmarketim.com (ana iş)
+
+JARVIS'in önceliği iki ticari sitedir; hukuk kişisel ilgi alanı olarak ikinci plandadır.
+- Her site salt okunur `GET /api/os/summary` (`X-OS-Token`) yayınlar: siparişler (alıcı
+  kişisel verisi YOK), ürün/stok/kampanya uyarıları, onay bekleyen soru-cevap, kur, ziyaretçi.
+- Okuma katmanı `app/services/sites.py` (60 sn önbellek, hata istisna atmaz, açıklamalı
+  döner). JARVIS araçları `site_overview`, `site_orders`, `site_catalog`, `site_questions`;
+  ana sayfa kartları `GET /api/jarvis/sites`; sabah brifingi de aynı veriyi okur.
+- Ayarlar: `GESPA_SITE_URL` (varsayılan https://www.gespaenerji.com) + `GESPA_OS_TOKEN`,
+  `GESM_SITE_URL` (https://www.gesmarketim.com) + `GESM_OS_TOKEN`. Token, sitenin Railway'deki
+  `OS_TOKEN` değeriyle AYNIDIR (≥32 karakter). Yönetici şifresi kullanılmaz.
+- Faz A yalnız okur. Fiyat/stok/kampanya değişikliği (Faz B) onay adımlı GitHub PR'ı olacak.
+
+---
+
 ## 🌅 Sabah brifingi (her gün 08:00, WhatsApp)
 
 - **Tetik:** `.github/workflows/sabah-brifingi.yml` — 07:50'de başlar, 08:00'i bekler,
@@ -145,9 +160,9 @@ Gespa OS veritabanını **yalnız okuyan** araçlarla sorgular ve gerçek veride
   Uygulamada zamanlayıcı YOK: Railway uyku modunda süreç çalışmaz, istek onu uyandırır.
   Sunucu günde **bir kez** gönderir (`jarvis_runs` (tür, gün) tekil); başarısızsa yedek
   tetik yeniden dener. Otomatik tetik yalnız 07:55–12:00 (TR) arasında gönderir.
-- **İçerik:** `services/briefing.py` veriyi JARVIS'in salt okunur araçlarıyla toplar
-  (önümüzdeki 7 gün: süreler, duruşmalar; açık dosyalar, yeni lead'ler, dikkat bekleyen
-  WhatsApp). Metni `JARVIS_BRIEF_MODEL` (varsayılan `claude-sonnet-5-5`) yazar; model yoksa
+- **İçerik:** `services/briefing.py` önce iki siteyi (son 24 saat siparişler, bekleyen
+  ödemeler, onay bekleyen soru-cevap, ürün uyarıları), sonra dikkat bekleyen WhatsApp'ı
+  yazar; hukuk yalnız gecikmiş/bugün dolan süre varsa tek satır. Metni `JARVIS_BRIEF_MODEL` (varsayılan `claude-sonnet-5-5`) yazar; model yoksa
   ya da hata verirse veriden düz metin gönderilir.
 - **Gönderim:** sahip son 24 saatte yazdıysa tam metin serbest mesajla; değilse onaylı
   utility şablonu `sabah_brifingi` ({{1}} tarih, {{2}} tek satır özet — ikisi de veriden,

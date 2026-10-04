@@ -13,9 +13,13 @@ const TOOL_LABELS: Record<string, string> = {
   list_workspaces: '🗂 workspace',
   list_leads: '👤 lead',
   inbox_summary: '💬 WhatsApp',
+  site_overview: '🌐 siteler',
+  site_orders: '🛒 siparişler',
+  site_catalog: '📦 katalog',
+  site_questions: '❓ soru-cevap',
 }
 
-const SUGGESTIONS = ['Bu hafta neyim var?', 'Geciken süre var mı?', 'Teklif bekleyen lead\'ler?']
+const SUGGESTIONS = ['Siteler bugün nasıl?', 'Yeni sipariş var mı?', 'Hangi ürünlerde sorun var?']
 
 /** Ana sayfadaki komuta kutusu — JARVIS gerçek veriden cevap verir (Faz 1: yalnız okur). */
 export function JarvisChat() {
@@ -157,7 +161,7 @@ export function JarvisChat() {
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Bir şey sor: bu hafta neyim var?"
+          placeholder="Bir şey sor: dünden beri sipariş var mı?"
           className="input flex-1"
           disabled={sending || !configured}
           maxLength={4000}
