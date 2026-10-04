@@ -1,0 +1,56 @@
+# Sabah brifingi tetiği — JARVIS (Gespa OS)
+#
+# Uygulama Railway'de uyku modunda; içeride zamanlayıcı çalışmaz. Bu iş akışı
+# korumalı bir HTTP isteğiyle uygulamayı uyandırır ve brifingi gönderir.
+# GitHub zamanlaması yoğun saatlerde gecikebildiği için 07:50'de (04:50 UTC)
+# başlar ve 08:00'e kadar bekler; 08:30'daki (05:30 UTC) ikinci tetik
+# yedektir. Sunucu günde YALNIZ BİR KEZ gönderir (jarvis_runs), ikinci tetik
+# "already_sent" ile atlar; ilki başarısızsa yeniden dener.
+#
+# Gerekenler (Settings → Secrets and variables → Actions):
+#   Secret   BRIEF_CRON_TOKEN  — Railway'deki BRIEF_CRON_TOKEN ile AYNI değer
+#   Variable GESPA_OS_URL      — isteğe bağlı, varsayılan https://os.gespaenerji.com
+name: Sabah brifingi
+
+on:
+  schedule:
+    - cron: "50 4 * * *"   # 07:50 Türkiye
+    - cron: "30 5 * * *"   # 08:30 Türkiye (yedek)
+  workflow_dispatch:
+
+concurrency:
+  group: sabah-brifingi
+  cancel-in-progress: false
+
+jobs:
+  tetikle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 08:00'i bekle (erken başladıysa)
+        if: github.event_name == 'schedule'
+        run: |
+          now=$(date -u +%s)
+          target=$(date -u -d "05:00" +%s)
+          wait=$(( target - now ))
+          if [ "$wait" -gt 0 ] && [ "$wait" -le 900 ]; then
+            echo "08:00'e ${wait} sn var, bekleniyor"; sleep "$wait"
+          fi
+
+      - name: Brifingi tetikle
+        env:
+          TOKEN: ${{ secrets.BRIEF_CRON_TOKEN }}
+          BASE: ${{ vars.GESPA_OS_URL || 'https://os.gespaenerji.com' }}
+        run: |
+          if [ -z "$TOKEN" ]; then echo "::error::BRIEF_CRON_TOKEN secret'ı tanımlı değil"; exit 1; fi
+          # Uyuyan servis ilk istekte uyanır; bağlantı/5xx hatalarında yeniden dene
+          code=$(curl -sS -o resp.json -w '%{http_code}' \
+            --retry 5 --retry-delay 20 --retry-all-errors --max-time 120 \
+            -X POST -H "X-Brief-Token: $TOKEN" "$BASE/api/jarvis/briefing/run")
+          echo "HTTP $code"; cat resp.json; echo
+          if [ "$code" != "200" ]; then echo "::error::Sunucu HTTP $code döndü"; exit 1; fi
+          status=$(python3 -c "import json;print(json.load(open('resp.json')).get('status',''))")
+          case "$status" in
+            sent|skipped) echo "Durum: $status" ;;
+            *) echo "::error::Brifing gönderilemedi: $status"; exit 1 ;;
+          esac

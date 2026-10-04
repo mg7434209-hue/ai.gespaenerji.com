@@ -138,6 +138,30 @@ Gespa OS veritabanını **yalnız okuyan** araçlarla sorgular ve gerçek veride
 
 ---
 
+## 🌅 Sabah brifingi (her gün 08:00, WhatsApp)
+
+- **Tetik:** `.github/workflows/sabah-brifingi.yml` — 07:50'de başlar, 08:00'i bekler,
+  `POST /api/jarvis/briefing/run` (`X-Brief-Token`) çağırır; 08:30'da yedek tetik.
+  Uygulamada zamanlayıcı YOK: Railway uyku modunda süreç çalışmaz, istek onu uyandırır.
+  Sunucu günde **bir kez** gönderir (`jarvis_runs` (tür, gün) tekil); başarısızsa yedek
+  tetik yeniden dener. Otomatik tetik yalnız 07:55–12:00 (TR) arasında gönderir.
+- **İçerik:** `services/briefing.py` veriyi JARVIS'in salt okunur araçlarıyla toplar
+  (önümüzdeki 7 gün: süreler, duruşmalar; açık dosyalar, yeni lead'ler, dikkat bekleyen
+  WhatsApp). Metni `JARVIS_BRIEF_MODEL` (varsayılan `claude-sonnet-5-5`) yazar; model yoksa
+  ya da hata verirse veriden düz metin gönderilir.
+- **Gönderim:** sahip son 24 saatte yazdıysa tam metin serbest mesajla; değilse onaylı
+  utility şablonu `sabah_brifingi` ({{1}} tarih, {{2}} tek satır özet — ikisi de veriden,
+  satır sonu yok) + "Brifingi gönder" düğmesi. Düğmeye basınca ya da "brifing" yazınca
+  tam metin gelir. Sahibin mesajları müşteri asistanına gitmez.
+- **Ayarlar (Railway):** `BRIEF_CRON_TOKEN` (GitHub secret'ıyla AYNI) · `JARVIS_OWNER_PHONE`
+  (905XXXXXXXXX) · `JARVIS_BRIEF_MODEL` · `BRIEF_TEMPLATE_NAME` (`sabah_brifingi`) ·
+  `BRIEF_TEMPLATE_LANG` (`tr`). GitHub: secret `BRIEF_CRON_TOKEN`, isteğe bağlı variable
+  `GESPA_OS_URL`.
+- **Uçlar:** `GET /api/jarvis/briefing/preview` (ücretsiz önizleme) ·
+  `POST /api/jarvis/briefing/send` (elle gönder, saat penceresini yok sayar).
+
+---
+
 ## ⚖️ Hukuk Ofisi — avukat ajan serisi
 
 `/hukuk` menüsü, uzmanlık alanına göre ayrılmış **23 avukat ajanı** barındırır:

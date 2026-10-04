@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     jarvis_effort: str = "low"          # low | medium | high | xhigh | max
     jarvis_max_steps: int = 8           # bir soruda en çok kaç model çağrısı
     jarvis_fallbacks: bool = True       # ret durumunda sunucu tarafı yedek model (beta)
+    # Sahibin WhatsApp numarası (905XXXXXXXXX). Brifing buraya gider; bu numaradan
+    # gelen mesajlara müşteri asistanı cevap vermez.
+    jarvis_owner_phone: str = ""
+
+    # Sabah brifingi — BRIEF_* / JARVIS_BRIEF_MODEL
+    jarvis_brief_model: str = "claude-sonnet-5-5"
+    brief_cron_token: str = ""          # GitHub Actions'ın X-Brief-Token başlığı
+    brief_template_name: str = "sabah_brifingi"
+    brief_template_lang: str = "tr"
 
     # WhatsApp Business API (Meta Cloud)
     whatsapp_access_token: str = ""
