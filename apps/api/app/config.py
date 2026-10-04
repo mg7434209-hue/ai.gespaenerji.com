@@ -2,18 +2,22 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEFAULT_JWT_SECRET = "dev-secret-change-in-production"
+DEFAULT_ADMIN_PASSWORD = "change-me"
+
+
 class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./dev.db"
 
     # Auth
-    jwt_secret: str = "dev-secret-change-in-production"
+    jwt_secret: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 gün
 
     # Admin (tek kullanıcı — başlangıçta seed edilir)
     admin_email: str = "admin@gespa.com"
-    admin_password: str = "change-me"
+    admin_password: str = DEFAULT_ADMIN_PASSWORD
 
     # AI Keys
     anthropic_api_key: str = ""
@@ -26,6 +30,12 @@ class Settings(BaseSettings):
     legal_triage_model: str = ""
     # İkinci okuma / denetim modeli — boşsa legal_model kullanılır
     legal_review_model: str = ""
+
+    # Komuta ajanı (JARVIS) — JARVIS_MODEL / JARVIS_EFFORT / JARVIS_MAX_STEPS
+    jarvis_model: str = "claude-opus-5-5"
+    jarvis_effort: str = "low"          # low | medium | high | xhigh | max
+    jarvis_max_steps: int = 8           # bir soruda en çok kaç model çağrısı
+    jarvis_fallbacks: bool = True       # ret durumunda sunucu tarafı yedek model (beta)
 
     # WhatsApp Business API (Meta Cloud)
     whatsapp_access_token: str = ""
@@ -47,6 +57,23 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
+
+    def production_problems(self) -> list[str]:
+        """Üretimde varsayılan/zayıf gizli değerle açılmayı engelleyen denetim.
+
+        Repo herkese açık olmuş, varsayılanlar herkesçe biliniyor: JWT_SECRET
+        varsayılanda kalırsa herkes geçerli oturum belirteci üretebilir.
+        """
+        if not self.is_production:
+            return []
+        problems = []
+        if self.jwt_secret == DEFAULT_JWT_SECRET or len(self.jwt_secret) < 32:
+            problems.append("JWT_SECRET varsayılan ya da 32 karakterden kısa")
+        if self.admin_password == DEFAULT_ADMIN_PASSWORD or len(self.admin_password) < 12:
+            problems.append("ADMIN_PASSWORD varsayılan ya da 12 karakterden kısa")
+        if self.database_url.startswith("sqlite"):
+            problems.append("DATABASE_URL tanımlı değil (SQLite'a düşüyor)")
+        return problems
 
 
 settings = Settings()

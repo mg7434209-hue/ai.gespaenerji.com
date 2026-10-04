@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy import text
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.database import engine
 from app.seed import seed
 from app.auth.routes import router as auth_router
 from app.routers.workspaces import router as workspaces_router
@@ -16,12 +18,17 @@ from app.routers.leads import router as leads_router
 from app.routers.agents import router as agents_router
 from app.routers.whatsapp import router as whatsapp_router
 from app.routers.legal import router as legal_router
+from app.routers.jarvis import router as jarvis_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Başlangıçta tabloları oluştur + seed et
     print("🚀 Gespa OS başlatılıyor...")
+    problems = settings.production_problems()
+    if problems:
+        # Varsayılan gizli değerlerle canlıya ÇIKILMAZ — env düzeltilene dek açılmaz.
+        raise RuntimeError("Üretim ayarları eksik: " + "; ".join(problems))
     try:
         seed()
     except Exception as e:
@@ -60,10 +67,19 @@ app.include_router(leads_router)
 app.include_router(agents_router)
 app.include_router(whatsapp_router)
 app.include_router(legal_router)
+app.include_router(jarvis_router)
 
 
 @app.get("/api/health")
 def health():
+    """Railway healthcheck (railway.json). Yeni dağıtım bu uç 200 dönene dek
+    trafiği almaz; açılamazsa (üretim koruması, DB yok) eski sürüm çalışmaya
+    devam eder. Veritabanına da dokunur: DB'ye ulaşamayan sürüm sağlıklı sayılmaz."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse(status_code=503, content={"status": "db_error", "error": type(e).__name__})
     return {
         "status": "ok",
         "app": "gespa-os",

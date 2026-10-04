@@ -1,5 +1,6 @@
 
 import { WhiskyHourCard } from '@/components/WhiskyHourCard'
+import { JarvisChat } from '@/components/JarvisChat'
 import { useEffect, useState } from 'react'
 import { TrendingUp, Users, Target, Zap, ArrowUpRight, ExternalLink, Globe, Scale, AlertTriangle, CalendarClock } from 'lucide-react'
 import clsx from 'clsx'
@@ -72,6 +73,9 @@ export function Dashboard() {
           {agents.length ? `${activeAgents}/${agents.length} ajan görevde` : 'ajanlar yükleniyor'}
         </p>
       </div>
+
+      {/* Komuta kutusu — JARVIS gerçek veriden cevap verir */}
+      <JarvisChat />
 
       {/* Hukuki süreler — kaçırılırsa hak kaybı olur, en üstte durur */}
       {agenda && agenda.deadlines.length > 0 && <LegalAgendaCard agenda={agenda} />}

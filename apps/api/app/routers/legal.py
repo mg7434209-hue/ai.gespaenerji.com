@@ -28,10 +28,11 @@ from app.models_legal import (
     LegalMessage,
     LegalReview,
 )
-from app.services import document_text, legal_dates
+from app.services import agenda, document_text, legal_dates
 from app.services.document_text import UnsupportedDocument
 from app.services.legal_ai import legal_ai
 from app.services.legal_export import build_docx, safe_filename
+from app.timeutil import today_tr
 
 
 logger = logging.getLogger(__name__)
@@ -698,7 +699,7 @@ def list_deadlines(
         q = q.filter(LegalDeadline.matter_id == matter_id)
     if days is not None:
         from datetime import timedelta
-        q = q.filter(LegalDeadline.due_date <= date.today() + timedelta(days=days))
+        q = q.filter(LegalDeadline.due_date <= today_tr() + timedelta(days=days))
     rows = q.order_by(LegalDeadline.due_date).all()
     return [_deadline_out(d) for d in rows]
 
@@ -815,34 +816,12 @@ def legal_agenda(
     user: User = Depends(get_current_user),
 ):
     """Dashboard için: yaklaşan ve geçmiş süreler + duruşmalar."""
-    from datetime import timedelta
-    horizon = date.today() + timedelta(days=days)
-    rows = (
-        db.query(LegalDeadline)
-        .filter(LegalDeadline.status == "open", LegalDeadline.due_date <= horizon)
-        .order_by(LegalDeadline.due_date)
-        .all()
-    )
-    overdue = [d for d in rows if d.due_date < date.today()]
-    hearings = (
-        db.query(LegalMatter)
-        .filter(
-            LegalMatter.next_hearing.isnot(None),
-            LegalMatter.next_hearing >= date.today(),
-            LegalMatter.next_hearing <= horizon,
-        )
-        .order_by(LegalMatter.next_hearing)
-        .all()
-    )
+    a = agenda.build_agenda(db, days=days)
     return {
-        "deadlines": [_deadline_out(d) for d in rows],
-        "overdue": len(overdue),
-        "critical": len([d for d in rows if d.critical and d.due_date >= date.today()]),
-        "hearings": [
-            {"matter_id": m.id, "title": m.title, "court": m.court,
-             "date": m.next_hearing, "days_left": legal_dates.days_left(m.next_hearing)}
-            for m in hearings
-        ],
+        "deadlines": [_deadline_out(d) for d in a["deadlines"]],
+        "overdue": a["overdue"],
+        "critical": a["critical"],
+        "hearings": a["hearings"],
     }
 
 
@@ -1449,7 +1428,7 @@ def legal_stats(
     open_deadlines = db.query(LegalDeadline).filter(LegalDeadline.status == "open").count()
     overdue = (
         db.query(LegalDeadline)
-        .filter(LegalDeadline.status == "open", LegalDeadline.due_date < date.today())
+        .filter(LegalDeadline.status == "open", LegalDeadline.due_date < today_tr())
         .count()
     )
     return {

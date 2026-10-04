@@ -45,8 +45,29 @@ ADMIN_PASSWORD=<güçlü-şifre>
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=...
+WHATSAPP_ACCESS_TOKEN=...
+WHATSAPP_PHONE_NUMBER_ID=...
+WHATSAPP_APP_SECRET=<Meta uygulama gizli anahtarı>
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=<rastgele>
 ENVIRONMENT=production
 ```
+
+**Üretim koruması:** `ENVIRONMENT=production` iken `JWT_SECRET` 32 karakterden kısa
+ya da varsayılansa, `ADMIN_PASSWORD` 12 karakterden kısa ya da varsayılansa veya
+`DATABASE_URL` yoksa uygulama **açılmaz** (log'da hangi değişkenin eksik olduğu yazar).
+
+**Admin şifresi:** veritabanındaki şifre her açılışta `ADMIN_PASSWORD` ile eşitlenir —
+şifreyi değiştirmek = Railway'de değişkeni değiştirip yeniden dağıtmak. `ADMIN_EMAIL`
+değişirse eski hesap devre dışı kalır (tek kullanıcı sistemi).
+
+**WhatsApp webhook:** her istek `X-Hub-Signature-256` imzasıyla doğrulanır
+(`WHATSAPP_APP_SECRET` = Meta App Dashboard → Settings → Basic → App Secret).
+Üretimde bu değişken yoksa webhook istekleri 403 ile reddedilir. Okundu işareti ve
+AI analizi yanıt döndükten sonra arka planda çalışır.
+
+**Saat:** "bugün" her yerde Türkiye saatidir (`app/timeutil.py`); Railway UTC çalışır.
+
+**Test:** `cd apps/api && pip install -r requirements.txt pytest && python -m pytest -q tests`
 
 **JWT_SECRET üretmek için:**
 ```bash
@@ -89,6 +110,31 @@ gespa-os/
 ├── Dockerfile        # Multi-stage build (Node + Python)
 └── README.md
 ```
+
+---
+
+## 🤖 JARVIS — komuta ajanı (Faz 1: yalnız okur)
+
+Ana sayfanın en üstündeki sohbet kutusu. Soruyu Claude'a (tool use) verir; Claude
+Gespa OS veritabanını **yalnız okuyan** araçlarla sorgular ve gerçek veriden cevap verir
+("Bu hafta neyim var?" → ajanda + süreler + duruşmalar).
+
+- Araçlar `app/services/jarvis_tools.py` (`TOOLS` + `HANDLERS`): `get_agenda`,
+  `list_deadlines`, `list_matters`, `get_matter`, `list_workspaces`, `list_leads`,
+  `inbox_summary`. **Faz 1'de hiçbir araç yazmaz** (test denetler); yazma işleri Faz 2'de
+  onay adımıyla gelecek. Ajanda hesabı `services/agenda.py` ile `/api/legal/agenda` ortaktır.
+- Döngü `app/services/jarvis.py`: sabit sistem promptu (önbellek), "şu an" bilgisi her
+  kullanıcı mesajının başında (Türkiye saati), en çok `JARVIS_MAX_STEPS` model çağrısı.
+  Ret / API hatası / adım sınırı turu düz metinle kapatır.
+- Hafıza `jarvis_conversations` + `jarvis_messages`: her satır API'ye giden bir mesajın
+  BİREBİR kopyasıdır ve geçmiş **yalnız eklenir** (Opus 5.5 düşünme bloklarını sohbete
+  bağlar; geçmişi düzenlemek sonraki istekleri bozar). Uzayan sohbet budanmaz,
+  "Yeni sohbet" açılır.
+- Uçlar: `POST /api/jarvis/chat` · `GET /api/jarvis/conversations/latest` ·
+  `GET /api/jarvis/conversations/{id}` · `GET /api/jarvis/status`.
+- Ayarlar: `JARVIS_MODEL` (varsayılan `claude-opus-5-5`) · `JARVIS_EFFORT` (`low`) ·
+  `JARVIS_MAX_STEPS` (8) · `JARVIS_FALLBACKS` (`true`: ret durumunda sunucu tarafı yedek
+  model, beta — sorun çıkarırsa `false`). `ANTHROPIC_API_KEY` yoksa kutu "kapalı" yazar.
 
 ---
 

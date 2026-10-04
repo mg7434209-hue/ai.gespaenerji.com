@@ -6,9 +6,10 @@ from app.models import User, Workspace, Agent
 
 # Tablolar create_all ile oluşacağı için modellerin import edilmesi şart
 from app import models_whatsapp  # noqa: F401
+from app import models_jarvis  # noqa: F401
 from app.models_legal import LegalAgent
 from app.legal_agents import LEGAL_AGENTS, build_system_prompt
-from app.auth.security import hash_password
+from app.auth.security import hash_password, verify_password
 from app.config import settings
 
 
@@ -238,9 +239,27 @@ def seed():
             if admin.full_name != ADMIN_FULL_NAME:
                 print(f"✓ Admin ismi güncellendi: {admin.full_name} → {ADMIN_FULL_NAME}")
                 admin.full_name = ADMIN_FULL_NAME
-            # Şifre boşsa yeniden hashle
-            if not admin.password_hash:
+            # Şifre ADMIN_PASSWORD ile eşit tutulur: env değişince bir sonraki
+            # açılışta DB'deki hash de değişir (eskiden yalnız boşsa yazılıyordu,
+            # env'i değiştirmek eski şifreyi geçerli bırakıyordu).
+            if not admin.password_hash or not verify_password(
+                settings.admin_password, admin.password_hash
+            ):
                 admin.password_hash = hash_password(settings.admin_password)
+                print("✓ Admin şifresi ADMIN_PASSWORD ile eşitlendi")
+            admin.is_active = True
+
+        # Tek kullanıcı sistemi: ADMIN_EMAIL değişirse eski hesap eski şifresiyle
+        # açık kalmasın.
+        db.flush()
+        stale_users = (
+            db.query(User)
+            .filter(User.email != settings.admin_email.lower(), User.is_active == True)  # noqa: E712
+            .all()
+        )
+        for u in stale_users:
+            u.is_active = False
+            print(f"✓ Eski kullanıcı devre dışı: {u.email}")
 
         # Workspaces
         for ws_data in DEFAULT_WORKSPACES:
