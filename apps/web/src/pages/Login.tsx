@@ -1,10 +1,11 @@
 import { FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 
 export function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login, loading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -15,7 +16,8 @@ export function Login() {
     setError('')
     try {
       await login(email, password)
-      navigate('/')
+      const returnTo = location.state?.returnTo
+      navigate(typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/', { replace: true })
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Giriş başarısız')
     }

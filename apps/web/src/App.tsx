@@ -22,6 +22,7 @@ import { LegalBoard } from './pages/LegalBoard'
 export default function App() {
   return (
     <Routes>
+      <Route path="/jarvis" element={<ProtectedRoute><JarvisChat fullPage /></ProtectedRoute>} />
       <Route path="/login" element={<Login />} />
       <Route
         path="/"
@@ -32,7 +33,6 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="jarvis" element={<JarvisChat fullPage />} />
         <Route path="inbox" element={<Inbox />} />
         <Route path="roadmap" element={<Roadmap />} />
         <Route path="workspaces" element={<Workspaces />} />

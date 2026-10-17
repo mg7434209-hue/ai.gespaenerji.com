@@ -26,14 +26,15 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [configured, setConfigured] = useState(true)
-  const [voiceEnabled, setVoiceEnabled] = useState(false)
-  const speech = useSpeech(value => setText(prev => (prev + ' ' + value).trim().slice(0, 4000)))
+  const [voiceEnabled, setVoiceEnabled] = useState(fullPage)
+  const [loading, setLoading] = useState(true)
+  const speech = useSpeech(value => { if (fullPage) void ask(value.slice(0, 4000)); else setText(prev => (prev + ' ' + value).trim().slice(0, 4000)) })
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     api.get<{ configured: boolean }>('/jarvis/status')
       .then(({ data }) => setConfigured(data.configured))
-      .catch(() => {})
+      .catch(() => { setConfigured(false); setError('Asistana bağlanılamadı. Sayfayı yenileyin.') })
     api.get<JarvisConversation | null>('/jarvis/conversations/latest', { params: { channel: 'web' } })
       .then(({ data }) => {
         if (data) {
@@ -41,7 +42,8 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
           setMessages(data.messages)
         }
       })
-      .catch(() => {})
+      .catch(() => setError('Sohbet yüklenemedi. Sayfayı yenileyin.'))
+      .finally(() => setLoading(false))
   }, [])
 
   // Yalnız kutunun içi kayar; sayfa zıplamaz
@@ -52,7 +54,7 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
 
   async function ask(body: string) {
     body = body.trim()
-    if (!body || sending) return
+    if (!body || sending || loading || !configured) return
     speech.stopListening()
     speech.stopSpeaking()
     setSending(true)
@@ -88,6 +90,32 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
     setConversationId(null)
     setMessages([])
     setError(null)
+  }
+
+  if (fullPage) {
+    const last = messages[messages.length - 1]
+    const state = speech.listening ? 'listening' : sending ? 'thinking' : speech.speaking ? 'speaking' : 'idle'
+    const status = loading ? 'Bağlanıyorum…' : !configured ? 'Bağlantı hazır değil' : speech.listening ? 'Dinliyorum' : sending ? 'Düşünüyorum' : speech.speaking ? 'Konuşuyorum' : 'Sizi dinlemeye hazırım'
+    return <main className={'jarvis-stage ' + state}>
+      <header className="jarvis-top"><a href="/" className="jarvis-wordmark">J.A.R.V.I.S<span>GESPA</span></a><div className="jarvis-actions">
+        <button type="button" aria-label={voiceEnabled ? 'Sesli yanıtı kapat' : 'Sesli yanıtı aç'} aria-pressed={voiceEnabled} onClick={() => { setVoiceEnabled(!voiceEnabled); speech.stopSpeaking() }}>{voiceEnabled ? <Volume2 size={20}/> : <VolumeX size={20}/>}</button>
+        <button type="button" disabled={sending || loading} onClick={newChat} aria-label="Yeni sohbet"><Plus size={20}/></button>
+      </div></header>
+      <section className="jarvis-center" aria-label="JARVIS sesli asistan">
+        <button type="button" className="jarvis-orb" disabled={sending || loading || !configured} aria-label={speech.listening ? 'Dinlemeyi durdur' : speech.speaking ? 'Yanıtı durdur ve konuş' : 'JARVIS ile konuş'} aria-pressed={speech.listening} onClick={speech.toggleListening}>
+          <span className="orb-halo"/><span className="orb-ring ring-one"/><span className="orb-ring ring-two"/><span className="orb-sphere"><span className="orb-shine"/><span className="orb-wave"><i/><i/><i/><i/><i/><i/><i/></span></span>
+        </button>
+        <h1>J.A.R.V.I.S</h1><p className="jarvis-state" role="status">{status}</p>
+        <div className="jarvis-answer" aria-live="polite">{last && <><span>{last.role === 'user' ? 'SİZ' : 'JARVIS'}</span><p>{last.text}</p></>}{!last && !loading && <p>Küreye dokunun ve sorunuzu sorun.</p>}</div>
+        {speech.speaking && <button type="button" className="jarvis-stop" onClick={speech.stopSpeaking}><Square size={13}/> Sesi durdur</button>}
+      </section>
+      <footer className="jarvis-bottom">
+        {(error || speech.error || !configured) && <p role="alert" className="jarvis-error">{error || speech.error || 'Asistan bağlantısı hazır değil. Sunucu ayarlarını kontrol edin.'}</p>}
+        <form className="jarvis-input" onSubmit={e => { e.preventDefault(); void ask(text) }}><input value={text} onChange={e=>setText(e.target.value)} aria-label="JARVIS’e sorunuzu yazın" placeholder="Ya da sorunuzu yazın…" maxLength={4000} disabled={sending || loading || !configured}/><button type="button" aria-label={speech.listening ? 'Dinlemeyi durdur' : 'Konuş'} onClick={speech.toggleListening} disabled={sending || loading || !configured}>{speech.listening ? <Square size={20}/> : <Mic size={20}/>}</button><button type="submit" aria-label="Gönder" disabled={sending || loading || !configured || !text.trim()}><Send size={19}/></button></form>
+        <p className="jarvis-hint">{speech.supported ? 'Küreye dokun · Konuş · Yanıtı dinle' : 'Sesli giriş için telefon klavyenizin mikrofonunu kullanabilirsiniz.'}</p>
+        {messages.length > 0 && <details className="jarvis-history"><summary>Sohbet geçmişi</summary><div>{messages.map(m=><article key={m.id}><strong>{m.role==='user'?'Siz':'JARVIS'}</strong><p>{m.text}</p></article>)}</div></details>}
+      </footer>
+    </main>
   }
 
   return (
