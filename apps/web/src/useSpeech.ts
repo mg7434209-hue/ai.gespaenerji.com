@@ -9,68 +9,84 @@ export function useSpeech(onTranscript: (text: string) => void) {
   const [supported, setSupported] = useState(false)
   const [canSpeak, setCanSpeak] = useState(false)
   const recognition = useRef<Recognition | null>(null)
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const startTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const requestRef = useRef<AbortController | null>(null)
   const playbackId = useRef(0)
+  const cached = useRef<{ text: string; url: string } | null>(null)
+  const [audioReady, setAudioReady] = useState(false)
+  const [preparing, setPreparing] = useState(false)
   const callback = useRef(onTranscript)
   callback.current = onTranscript
 
   useEffect(() => {
     const w = window as Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition }
     setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
-    setCanSpeak('speechSynthesis' in window)
-    return () => { if (startTimer.current) clearTimeout(startTimer.current); playbackId.current++; if (recognition.current) { recognition.current.onresult = null; recognition.current.onerror = null; recognition.current.onend = null; recognition.current.abort() }; window.speechSynthesis?.cancel() }
+    setCanSpeak('HTMLAudioElement' in window)
+    return () => {
+      playbackId.current++
+      requestRef.current?.abort()
+      audioRef.current?.pause()
+      if (cached.current) URL.revokeObjectURL(cached.current.url)
+      if (recognition.current) { recognition.current.onresult = null; recognition.current.onerror = null; recognition.current.onend = null; recognition.current.abort() }
+    }
   }, [])
 
   function stopSpeaking() {
     playbackId.current++
-    if (startTimer.current) clearTimeout(startTimer.current)
-    startTimer.current = null
-    window.speechSynthesis?.cancel()
-    utteranceRef.current = null
+    requestRef.current?.abort()
+    requestRef.current = null
+    audioRef.current?.pause()
     setSpeaking(false)
+    setPreparing(false)
   }
-  // Bu çağrı doğrudan dokunma olayında yapılır; mobil ses motorunu hazırlar.
   function prepareAudio() {
-    if (!('speechSynthesis' in window)) return
-    window.speechSynthesis.resume()
-    const primer = new SpeechSynthesisUtterance(' ')
-    primer.lang = 'tr-TR'
-    primer.volume = 0
-    utteranceRef.current = primer
-    window.speechSynthesis.speak(primer)
+    // Otomatik oynatmayı engelleyen tarayıcılarda kullanıcı yerel oynatıcıya dokunur.
+    const audio = audioRef.current
+    if (audio) { audio.muted = false; audio.volume = 1 }
   }
-  function speak(text: string) {
-    if (!('speechSynthesis' in window)) { setError('Bu tarayıcı sesli okumayı desteklemiyor.'); return }
+  async function speak(text: string) {
     stopSpeaking()
     setError(null)
     const token = playbackId.current
-    const synth = window.speechSynthesis
-    const utterance = new SpeechSynthesisUtterance(text)
-    utteranceRef.current = utterance
-    utterance.lang = 'tr-TR'
-    utterance.volume = 1
-    utterance.rate = 1
-    const voices = synth.getVoices()
-    const voice = voices.find(v => v.lang.toLowerCase().startsWith('tr') && v.localService)
-      || voices.find(v => v.lang.toLowerCase().startsWith('tr'))
-    if (voice) utterance.voice = voice
-    const clearTimer = () => { if (startTimer.current) clearTimeout(startTimer.current); startTimer.current = null }
-    utterance.onstart = () => { if (token !== playbackId.current) return; clearTimer(); setSpeaking(true) }
-    utterance.onend = () => { if (token !== playbackId.current) return; clearTimer(); utteranceRef.current = null; setSpeaking(false) }
-    utterance.onerror = event => {
+    const input = text.trim().slice(0, 4000)
+    if (!input) return
+    const audio = audioRef.current
+    if (!audio) { setError('Ses oynatıcı açılamadı. Sayfayı yenileyin.'); return }
+    prepareAudio()
+    setPreparing(true)
+    try {
+      let url = cached.current?.text === input ? cached.current.url : null
+      if (!url) {
+        const controller = new AbortController()
+        requestRef.current = controller
+        const response = await fetch('/api/jarvis/speech', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({text: input}), signal: controller.signal })
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}))
+          throw new Error(body.detail || 'Ses hazırlanamadı. Yeniden deneyin.')
+        }
+        const blob = await response.blob()
+        if (token !== playbackId.current) return
+        if (cached.current) URL.revokeObjectURL(cached.current.url)
+        url = URL.createObjectURL(blob)
+        cached.current = { text: input, url }
+      }
       if (token !== playbackId.current) return
-      clearTimer(); setSpeaking(false); utteranceRef.current = null
-      if (event.error !== 'interrupted' && event.error !== 'canceled') setError('Sesli yanıt başlatılamadı. Yanıtı dinle düğmesine dokunun; telefonun medya sesini de kontrol edin.')
+      audio.src = url
+      audio.currentTime = 0
+      setAudioReady(true)
+      setPreparing(false)
+      await audio.play()
+    } catch (err) {
+      if (token !== playbackId.current) return
+      setPreparing(false); setSpeaking(false)
+      setError(err instanceof DOMException && err.name === 'NotAllowedError'
+        ? 'Ses hazır. Aşağıdaki oynat düğmesine dokunun.'
+        : err instanceof Error ? err.message : 'Ses oynatılamadı.')
     }
-    startTimer.current = setTimeout(() => {
-      if (token !== playbackId.current) return
-      stopSpeaking()
-      setError('Tarayıcı otomatik sesli yanıtı başlatmadı. Yanıtı dinle düğmesine dokunun.')
-    }, 5000)
-    synth.resume()
-    synth.speak(utterance)
   }
+  const onAudioPlay = () => { setPreparing(false); setSpeaking(true); setError(null) }
+  const onAudioPause = () => setSpeaking(false)
+  const onAudioError = () => { setPreparing(false); setSpeaking(false); setError('Ses dosyası oynatılamadı. Yanıtı dinle ile yeniden deneyin.') }
   function toggleListening() {
     if (listening) { recognition.current?.stop(); return }
     const w = window as Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition }
@@ -86,5 +102,5 @@ export function useSpeech(onTranscript: (text: string) => void) {
     try { r.start(); setListening(true) } catch { setError('Mikrofon başlatılamadı. Yeniden deneyin.') }
   }
   function stopListening() { recognition.current?.abort(); setListening(false) }
-  return { listening, speaking, error, supported, canSpeak, speak, prepareAudio, stopSpeaking, toggleListening, stopListening }
+  return { listening, speaking, error, supported, canSpeak, audioRef, audioReady, preparing, onAudioPlay, onAudioPause, onAudioError, speak, prepareAudio, stopSpeaking, toggleListening, stopListening }
 }

@@ -298,3 +298,16 @@ gizli değişkenlerinde tutulur; repoya veya tarayıcı koduna eklenmez.
 Alan adı olarak `ai.gespaenerji.com` kullanılacaksa Railway servisinin Custom Domain
 bölümüne bu adı ekleyin ve DNS hedefini Railway'in verdiği değerle eşleştirin.
 Repo ismi tek başına DNS veya yayın oluşturmaz.
+
+### Doğal Türkçe ses
+
+JARVIS artık tarayıcının robotik sesi yerine OpenAI `gpt-4o-mini-tts` ile samimi
+Türkçe ses üretir. Railway web servisinde `OPENAI_API_KEY` gizli değişkeni gereklidir;
+Sites üzerinde kayıtlı anahtar Railway'e otomatik aktarılmaz. İsteğe bağlı
+`JARVIS_TTS_VOICE` varsayılanı `coral`dır. Ses üretimi API bakiyesinden ücretlendirilir.
+
+`POST /api/jarvis/speech` oturum gerektirir, metni 4000 karakterle sınırlar ve MP3
+yanıtına `Cache-Control: no-store, private` ekler. Oynatıcı son sesi sadece sekme
+belleğinde tutar; yeni ses veya sayfa kapanışında temizler. Otomatik oynatma
+engellenirse yerel ses oynatıcısındaki oynat düğmesine dokunun. Uzun yanıtların
+ilk 4000 karakteri okunur; tam metin ekranda kalır.
