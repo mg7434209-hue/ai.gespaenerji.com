@@ -8,6 +8,10 @@ export function useSpeech(onTranscript: (text: string) => void) {
   const [error, setError] = useState<string | null>(null)
   const [supported, setSupported] = useState(false)
   const [canSpeak, setCanSpeak] = useState(false)
+  const [conversationActive, setConversationActive] = useState(false)
+  const conversationMode = useRef(false)
+  const micActive = useRef(false)
+  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const recognition = useRef<Recognition | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const streamUrl = useRef<string | null>(null)
@@ -26,6 +30,8 @@ export function useSpeech(onTranscript: (text: string) => void) {
     setSupported(!!(w.SpeechRecognition || w.webkitSpeechRecognition))
     setCanSpeak('HTMLAudioElement' in window)
     return () => {
+      conversationMode.current = false
+      if (restartTimer.current) clearTimeout(restartTimer.current)
       if (silenceTimer.current) clearTimeout(silenceTimer.current)
       if (streamUrl.current) URL.revokeObjectURL(streamUrl.current)
       playbackId.current++
@@ -133,14 +139,18 @@ export function useSpeech(onTranscript: (text: string) => void) {
         : err instanceof Error ? err.message : 'Ses oynatılamadı.')
     }
   }
-  const onAudioPlay = () => { setPreparing(false); setSpeaking(true); setError(null) }
+  const onAudioPlay = () => { stopListening(); setPreparing(false); setSpeaking(true); setError(null) }
   const onAudioPause = () => setSpeaking(false)
   const onAudioError = () => { setPreparing(false); setSpeaking(false); setError('Ses dosyası oynatılamadı. Yanıtı dinle ile yeniden deneyin.') }
   function toggleListening() {
-    if (listening) { recognition.current?.stop(); return }
+    if (micActive.current) { recognition.current?.stop(); return }
+    startListening()
+  }
+  function startListening() {
+    if (micActive.current) return
     const w = window as Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition }
     const Constructor = w.SpeechRecognition || w.webkitSpeechRecognition
-    if (!Constructor) { setError('Mikrofonla yazdırma bu tarayıcıda desteklenmiyor. Klavyenizdeki mikrofonu veya yazılı sohbeti kullanabilirsiniz.'); return }
+    if (!Constructor) { conversationMode.current = false; setConversationActive(false); setError('Mikrofonla yazdırma bu tarayıcıda desteklenmiyor. Klavyenizdeki mikrofonu veya yazılı sohbeti kullanabilirsiniz.'); return }
     stopSpeaking(); prepareAudio(); setError(null)
     const r = new Constructor()
     recognition.current = r
@@ -151,10 +161,45 @@ export function useSpeech(onTranscript: (text: string) => void) {
       if (silenceTimer.current) clearTimeout(silenceTimer.current)
       silenceTimer.current = setTimeout(() => r.stop(), 1600)
     }
-    r.onerror = (event) => { transcript.current = ''; if (silenceTimer.current) clearTimeout(silenceTimer.current); setListening(false); if (event.error !== 'aborted') setError(event.error === 'not-allowed' ? 'Mikrofon izni verilmedi. Tarayıcı site ayarlarından izin verin.' : 'Ses alınamadı. Yeniden deneyin veya mesajınızı yazın.') }
-    r.onend = () => { if (silenceTimer.current) clearTimeout(silenceTimer.current); setListening(false); const value = transcript.current; transcript.current = ''; if (value) callback.current(value) }
-    try { r.start(); setListening(true) } catch { setError('Mikrofon başlatılamadı. Yeniden deneyin.') }
+    r.onerror = (event) => { transcript.current = ''; micActive.current = false; if (silenceTimer.current) clearTimeout(silenceTimer.current); setListening(false); if (event.error === 'no-speech' && conversationMode.current) return; if (event.error !== 'aborted') { conversationMode.current = false; setConversationActive(false); } if (event.error !== 'aborted') setError(event.error === 'not-allowed' ? 'Mikrofon izni verilmedi. Tarayıcı site ayarlarından izin verin.' : 'Ses alınamadı. Yeniden deneyin veya mesajınızı yazın.') }
+    r.onend = () => { micActive.current = false; if (silenceTimer.current) clearTimeout(silenceTimer.current); setListening(false); const value = transcript.current; transcript.current = ''; if (value) callback.current(value); else if (conversationMode.current) scheduleListening() }
+    try { r.start(); micActive.current = true; setListening(true) } catch { conversationMode.current = false; setConversationActive(false); setError('Mikrofon yeniden açılamadı. Küreye dokunarak tekrar başlatın.') }
   }
-  function stopListening() { transcript.current = ''; if (silenceTimer.current) clearTimeout(silenceTimer.current); recognition.current?.abort(); setListening(false) }
-  return { listening, speaking, error, supported, canSpeak, audioRef, audioReady, preparing, onAudioPlay, onAudioPause, onAudioError, speak, prepareAudio, stopSpeaking, toggleListening, stopListening }
+  function stopListening() {
+    if (restartTimer.current) clearTimeout(restartTimer.current)
+    transcript.current = ''
+    if (silenceTimer.current) clearTimeout(silenceTimer.current)
+    if (recognition.current) { recognition.current.onend = null; recognition.current.abort() }
+    micActive.current = false
+    setListening(false)
+  }
+  function scheduleListening() {
+    if (restartTimer.current) clearTimeout(restartTimer.current)
+    restartTimer.current = setTimeout(() => {
+      if (conversationMode.current && document.visibilityState === 'visible') startListening()
+    }, 350)
+  }
+  function endConversation() {
+    conversationMode.current = false
+    setConversationActive(false)
+    stopListening()
+    stopSpeaking()
+  }
+  function toggleConversation() {
+    if (conversationMode.current) { endConversation(); return }
+    conversationMode.current = true
+    setConversationActive(true)
+    startListening()
+  }
+  function onAudioEnded() {
+    onAudioPause()
+    if (conversationMode.current) scheduleListening()
+  }
+  useEffect(() => {
+    const hidden = () => { if (document.visibilityState === 'hidden') endConversation() }
+    document.addEventListener('visibilitychange', hidden)
+    return () => document.removeEventListener('visibilitychange', hidden)
+  }, [])
+
+  return { listening, speaking, error, supported, canSpeak, audioRef, audioReady, preparing, onAudioPlay, onAudioPause, onAudioError, onAudioEnded, conversationActive, toggleConversation, endConversation, speak, prepareAudio, stopSpeaking, toggleListening, stopListening }
 }
