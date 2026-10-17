@@ -48,7 +48,7 @@ def test_audio_private_and_key_server_only(monkeypatch):
     assert response.headers['cache-control'] == 'no-store, private'
     assert b'test-key' not in response.content
     assert calls[0][1]['json']['model'] == 'gpt-4o-mini-tts'
-    assert calls[0][1]['json']['voice'] == 'marin'
+    assert calls[0][1]['json']['voice'] == 'cedar'
 
 
 @pytest.mark.parametrize('text', ['', ' ' , 'x' * 4001])

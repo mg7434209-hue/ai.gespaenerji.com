@@ -112,14 +112,14 @@ async def speech(data: SpeechRequest, user: User = Depends(get_current_user)):
         raise HTTPException(400, "Seslendirilecek metin boş olamaz.")
     if not settings.openai_api_key:
         raise HTTPException(503, "Doğal ses için Railway servisinde OPENAI_API_KEY tanımlanmalı. Sites üzerindeki anahtar buraya otomatik aktarılmaz.")
-    voice = settings.jarvis_tts_voice if settings.jarvis_tts_voice in {"coral", "ash", "sage", "nova", "onyx", "shimmer", "alloy", "echo", "fable", "ballad", "verse", "marin", "cedar"} else "marin"
+    voice = settings.jarvis_tts_voice if settings.jarvis_tts_voice in {"coral", "ash", "sage", "nova", "onyx", "shimmer", "alloy", "echo", "fable", "ballad", "verse", "marin", "cedar"} else "cedar"
     client = httpx.AsyncClient(timeout=45.0)
     try:
         request = client.build_request("POST", "https://api.openai.com/v1/audio/speech",
             headers={"Authorization": "Bearer " + settings.openai_api_key},
             json={"model": "gpt-4o-mini-tts", "voice": voice,
-                  "input": data.text, "response_format": "mp3", "speed": 1.05,
-                  "instructions": "Türkçe doğal bir sohbet yapıyormuş gibi konuş. Sıcak, samimi, canlı ve rahat bir ton kullan. Kısa, doğal duraklamalar yap. Kelimeleri uzatma. Metin okur gibi tekdüze, mekanik veya aşırı teatral konuşma. Cümleleri akıcı ve net söyle."})
+                  "input": data.text, "response_format": "mp3", "speed": 1.03,
+                  "instructions": "İstanbul Türkçesiyle, yakın bir dostuyla konuşan deneyimli bir kişisel asistan gibi konuş. Sesin tok, sıcak ve yumuşak olsun; doğal bir alt perdede, rahat ve kendinden emin konuş. Samimi ol ama yapmacık neşe veya aşırı resmiyet kullanma. Cümle içinde doğal iniş çıkışlar yap, kelime sonlarını uzatma. Duraklamaları kısa tut; akıcı ve canlı bir sohbet ritmi kullan. Haber spikeri, reklam veya robot gibi okuma. Soru cümlelerini nazik bir merakla, açıklamaları anlaşılır ve güven veren biçimde söyle."})
         result = await client.send(request, stream=True)
     except httpx.TimeoutException:
         await client.aclose()
