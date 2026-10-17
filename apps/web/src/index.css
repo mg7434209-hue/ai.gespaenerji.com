@@ -38,3 +38,7 @@
 ::-webkit-scrollbar-track { background: #0f172a; }
 ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+.jarvis-full { height: calc(100dvh - 6rem); min-height: 22rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { .jarvis-full { height: calc(100dvh - 4rem); } }
+@media (max-width: 640px) { input, textarea, select { font-size: 16px; } }

@@ -1,3 +1,4 @@
+import { JarvisChat } from './components/JarvisChat'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
@@ -31,6 +32,7 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="jarvis" element={<JarvisChat fullPage />} />
         <Route path="inbox" element={<Inbox />} />
         <Route path="roadmap" element={<Roadmap />} />
         <Route path="workspaces" element={<Workspaces />} />
