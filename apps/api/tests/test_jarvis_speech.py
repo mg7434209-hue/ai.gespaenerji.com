@@ -22,7 +22,11 @@ def upstream(monkeypatch, status=200, payload=None):
         def __init__(self, **kwargs): pass
         async def __aenter__(self): return self
         async def __aexit__(self, *args): pass
-        async def post(self, url, **kwargs):
+        async def aclose(self): pass
+        def build_request(self, method, url, **kwargs):
+            return (url, kwargs)
+        async def send(self, request, **kwargs):
+            url, kwargs = request
             calls.append((url, kwargs))
             if status == 200:
                 return httpx.Response(200, content=b'ID3-test-audio', headers={'content-type': 'audio/mpeg'})
@@ -44,7 +48,7 @@ def test_audio_private_and_key_server_only(monkeypatch):
     assert response.headers['cache-control'] == 'no-store, private'
     assert b'test-key' not in response.content
     assert calls[0][1]['json']['model'] == 'gpt-4o-mini-tts'
-    assert calls[0][1]['json']['voice'] == 'coral'
+    assert calls[0][1]['json']['voice'] == 'marin'
 
 
 @pytest.mark.parametrize('text', ['', ' ' , 'x' * 4001])

@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -111,19 +112,25 @@ async def speech(data: SpeechRequest, user: User = Depends(get_current_user)):
         raise HTTPException(400, "Seslendirilecek metin boş olamaz.")
     if not settings.openai_api_key:
         raise HTTPException(503, "Doğal ses için Railway servisinde OPENAI_API_KEY tanımlanmalı. Sites üzerindeki anahtar buraya otomatik aktarılmaz.")
-    voice = settings.jarvis_tts_voice if settings.jarvis_tts_voice in {"coral", "ash", "sage", "nova", "onyx", "shimmer", "alloy", "echo", "fable", "ballad", "verse", "marin", "cedar"} else "coral"
+    voice = settings.jarvis_tts_voice if settings.jarvis_tts_voice in {"coral", "ash", "sage", "nova", "onyx", "shimmer", "alloy", "echo", "fable", "ballad", "verse", "marin", "cedar"} else "marin"
+    client = httpx.AsyncClient(timeout=45.0)
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            result = await client.post("https://api.openai.com/v1/audio/speech",
-                headers={"Authorization": "Bearer " + settings.openai_api_key},
-                json={"model": "gpt-4o-mini-tts", "voice": voice,
-                      "input": data.text, "response_format": "mp3",
-                      "instructions": "Türkçe konuş. Sıcak, samimi, sakin ve güven veren bir kişisel asistan gibi konuş. Doğal konuşma ritmi, yumuşak tonlama ve kısa duraklamalar kullan. Robotik, mekanik veya aşırı teatral okuma yapma. Kelimeleri anlaşılır söyle, acele etme."})
+        request = client.build_request("POST", "https://api.openai.com/v1/audio/speech",
+            headers={"Authorization": "Bearer " + settings.openai_api_key},
+            json={"model": "gpt-4o-mini-tts", "voice": voice,
+                  "input": data.text, "response_format": "mp3", "speed": 1.05,
+                  "instructions": "Türkçe doğal bir sohbet yapıyormuş gibi konuş. Sıcak, samimi, canlı ve rahat bir ton kullan. Kısa, doğal duraklamalar yap. Kelimeleri uzatma. Metin okur gibi tekdüze, mekanik veya aşırı teatral konuşma. Cümleleri akıcı ve net söyle."})
+        result = await client.send(request, stream=True)
     except httpx.TimeoutException:
+        await client.aclose()
         raise HTTPException(504, "Sesin hazırlanması zaman aşımına uğradı. Yeniden deneyin.")
     except httpx.RequestError:
+        await client.aclose()
         raise HTTPException(502, "Ses hizmetine bağlanılamadı. Yeniden deneyin.")
     if result.status_code != 200:
+        await result.aread()
+        await result.aclose()
+        await client.aclose()
         try:
             code = result.json().get("error", {}).get("code", "")
         except (ValueError, AttributeError):
@@ -137,6 +144,17 @@ async def speech(data: SpeechRequest, user: User = Depends(get_current_user)):
         else:
             message = "Doğal ses üretilemedi. Model erişimini ve API ayarlarını kontrol edin."
         raise HTTPException(502, message)
-    if not result.content or "audio/" not in result.headers.get("content-type", ""):
+    if "audio/" not in result.headers.get("content-type", ""):
+        await result.aclose()
+        await client.aclose()
         raise HTTPException(502, "Ses hizmetinden geçerli bir ses dosyası alınamadı.")
-    return Response(content=result.content, media_type="audio/mpeg", headers={"Cache-Control": "no-store, private", "X-Content-Type-Options": "nosniff"})
+
+    async def audio_chunks():
+        try:
+            async for chunk in result.aiter_bytes():
+                yield chunk
+        finally:
+            await result.aclose()
+            await client.aclose()
+
+    return StreamingResponse(audio_chunks(), media_type="audio/mpeg", headers={"Cache-Control": "no-store, private", "X-Content-Type-Options": "nosniff", "X-Accel-Buffering": "no"})

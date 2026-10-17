@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # AI Keys
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    jarvis_tts_voice: str = "coral"
+    jarvis_tts_voice: str = "marin"
     gemini_api_key: str = ""
 
     # Hukuk Ofisi ajanlarının modeli (LEGAL_MODEL env ile değiştirilebilir)

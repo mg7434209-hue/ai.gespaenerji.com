@@ -304,10 +304,16 @@ Repo ismi tek başına DNS veya yayın oluşturmaz.
 JARVIS artık tarayıcının robotik sesi yerine OpenAI `gpt-4o-mini-tts` ile samimi
 Türkçe ses üretir. Railway web servisinde `OPENAI_API_KEY` gizli değişkeni gereklidir;
 Sites üzerinde kayıtlı anahtar Railway'e otomatik aktarılmaz. İsteğe bağlı
-`JARVIS_TTS_VOICE` varsayılanı `coral`dır. Ses üretimi API bakiyesinden ücretlendirilir.
+`JARVIS_TTS_VOICE` varsayılanı `marin`dir. Ses üretimi API bakiyesinden ücretlendirilir.
 
 `POST /api/jarvis/speech` oturum gerektirir, metni 4000 karakterle sınırlar ve MP3
 yanıtına `Cache-Control: no-store, private` ekler. Oynatıcı son sesi sadece sekme
 belleğinde tutar; yeni ses veya sayfa kapanışında temizler. Otomatik oynatma
 engellenirse yerel ses oynatıcısındaki oynat düğmesine dokunun. Uzun yanıtların
 ilk 4000 karakteri okunur; tam metin ekranda kalır.
+
+Ses gecikmesi: OpenAI sesi sunucudan parça parça aktarılır. `audio/mpeg`
+MediaSource desteği olan tarayıcılarda ilk parça gelince oynatma başlar. Diğer
+tarayıcılarda MP3 tamamlandığında yerel oynatıcıyla çalınır. Otomatik oynatma
+izni tarayıcıya bağlıdır. Mikrofon artık ilk kelimeyi hemen göndermez; tüm
+tanınan cümleyi dinleme bittiğinde veya 1,6 saniyelik sessizlikten sonra gönderir.
