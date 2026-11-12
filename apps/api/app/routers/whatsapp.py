@@ -30,6 +30,13 @@ from app.models_whatsapp import (
 )
 from app.services.whatsapp_client import whatsapp_client
 from app.services.ai_assistant import ai_assistant, decide_action
+from app.services import briefing
+
+
+def _wants_briefing(message) -> bool:
+    """Şablon düğmesi ya da "brifing" yazısı."""
+    text = (message.content or "").strip().lower()
+    return message.content_type in ("button", "interactive") or text in ("brifing", "brifingi gönder")
 
 
 logger = logging.getLogger(__name__)
@@ -198,6 +205,12 @@ async def _process_inbound_message(db: Session, msg: dict, contact_map: dict) ->
                 media_url = await whatsapp_client.get_media_url(media_id)
             except Exception as e:
                 logger.warning("Media URL fetch failed: %s", e)
+    elif msg_type == "button":
+        # Şablondaki hızlı yanıt düğmesi ("Brifingi gönder")
+        content = (msg.get("button") or {}).get("text") or "[button]"
+    elif msg_type == "interactive":
+        it = msg.get("interactive") or {}
+        content = ((it.get("button_reply") or it.get("list_reply") or {}).get("title")) or "[interactive]"
     elif msg_type == "location":
         loc = msg.get("location", {})
         content = f"[Konum: {loc.get('latitude')},{loc.get('longitude')}] {loc.get('name', '')}"
@@ -241,6 +254,12 @@ async def _after_inbound(message_id: int):
             await whatsapp_client.mark_as_read(message.meta_message_id)
         except Exception:
             pass
+
+        # Sahibin (JARVIS_OWNER_PHONE) mesajı müşteri asistanına GİTMEZ
+        if briefing.owner_phone() and conv.phone == briefing.owner_phone():
+            if _wants_briefing(message):
+                await briefing.send_full_to_owner(db)
+            return
 
         # AI analizi (text mesajlar için)
         if message.content_type == "text" and (message.content or "").strip():

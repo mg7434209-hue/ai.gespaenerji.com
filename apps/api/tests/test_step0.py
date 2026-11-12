@@ -186,3 +186,34 @@ def test_railway_json_healthcheck():
     cfg = _j.loads((Path(__file__).resolve().parents[3] / "railway.json").read_text())
     assert cfg["deploy"]["healthcheckPath"] == "/api/health"
     assert cfg["build"]["builder"] == "DOCKERFILE"
+
+
+# ── Türkçe tarih etiketleri (gün adı modele hesaplatılmaz) ──────
+
+def test_day_labels_known_dates():
+    assert timeutil.day_label(date(2026, 10, 4)) == "4 Eki Paz"
+    assert timeutil.day_label(date(2026, 10, 5)) == "5 Eki Pzt"
+    assert timeutil.day_label_long(date(2026, 10, 4)) == "4 Ekim 2026 Pazar"
+    # UTC 22:30 → Türkiye ertesi gün 01:30
+    assert timeutil.ts_label("2026-10-03T22:30:00Z") == "4 Eki Paz 01:30"
+    assert timeutil.ts_label("2026-10-03T22:30:00") == "4 Eki Paz 01:30"  # saat dilimsiz = UTC
+    assert timeutil.ts_label("bozuk") == ""
+
+
+def test_now_line_carries_weekday_and_week_bounds():
+    from app.services import jarvis
+    fixed = datetime(2026, 10, 4, 14, 5, tzinfo=timeutil.TZ)
+    with mock.patch.object(jarvis, "now_tr", return_value=fixed):
+        line = jarvis.now_line("web")
+    assert line.startswith("[Şu an: 4 Ekim 2026 Pazar, saat 14:05")
+    assert "dün: 3 Eki Cmt" in line and "yarın: 5 Eki Pzt" in line
+    assert "bu hafta: 28 Eyl Pzt – 4 Eki Paz" in line
+    assert "ASLA kendin hesaplama" in jarvis.SYSTEM_PROMPT
+
+
+def test_agenda_outputs_carry_labels(db):
+    t = timeutil.today_tr()
+    db.add(LegalDeadline(title="x", due_date=t + timedelta(days=1)))
+    db.commit()
+    d = agenda.deadline_dict(agenda.build_agenda(db, days=3)["deadlines"][0], t)
+    assert d["due_label"] == timeutil.day_label(t + timedelta(days=1))

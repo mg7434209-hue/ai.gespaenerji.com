@@ -1,8 +1,9 @@
 """Komuta ajanı (JARVIS) uçları — ana sayfadaki sohbet kutusu."""
+import hmac
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -11,7 +12,8 @@ from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.models import User
 from app.models_jarvis import JarvisConversation, JarvisMessage
-from app.services import jarvis
+from app.config import settings
+from app.services import briefing, jarvis, sites
 
 router = APIRouter(prefix="/api/jarvis", tags=["jarvis"])
 
@@ -47,7 +49,6 @@ class ConversationOut(BaseModel):
 
 @router.get("/status")
 def status(user: User = Depends(get_current_user)):
-    from app.config import settings
     return {"configured": jarvis.is_configured(), "model": settings.jarvis_model}
 
 
@@ -98,6 +99,52 @@ def get_conversation(conv_id: int, db: Session = Depends(get_db), user: User = D
         raise HTTPException(404, "Sohbet bulunamadı")
     return _conv_out(conv, db)
 
+
+# ── İki ticari site ──────────────────────────────────────────
+
+@router.get("/sites")
+def sites_cards(fresh: bool = False, db: Session = Depends(get_db),
+                user: User = Depends(get_current_user)):
+    """Ana sayfa kartları: gespaenerji.com + gesmarketim.com kısa özeti."""
+    return {"sites": [sites.card(s, sites.summary_with_ledger(db, s, fresh=fresh)) for s in sites.SITES]}
+
+
+# ── Sabah brifingi ───────────────────────────────────────────
+
+@router.post("/briefing/run")
+async def briefing_run(
+    x_brief_token: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """GitHub Actions tetiği (oturum yok, BRIEF_CRON_TOKEN ile). Günde bir kez gönderir;
+    pencere dışında (07:55–12:00 TR) ya da gönderildiyse sessizce atlar."""
+    expected = settings.brief_cron_token
+    if not expected:
+        raise HTTPException(503, "BRIEF_CRON_TOKEN tanımlı değil")
+    if not x_brief_token or not hmac.compare_digest(x_brief_token.encode(), expected.encode()):
+        raise HTTPException(403, "Geçersiz belirteç")
+    return await briefing.run_morning(db)
+
+
+@router.get("/briefing/preview")
+def briefing_preview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Gönderilecek brifingin modelsiz önizlemesi (ücretsiz)."""
+    data = briefing.collect(db)
+    return {
+        "template_params": [briefing.date_label(data), briefing.summary_line(data)],
+        "text": briefing.plain_text(data),
+        "owner_configured": bool(briefing.owner_phone()),
+        "window_open": briefing.owner_window_open(db),
+    }
+
+
+@router.post("/briefing/send")
+async def briefing_send(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Elle gönderim (saat penceresi yok sayılır)."""
+    return await briefing.run_morning(db, manual=True)
+
+
+# ── Ses ──────────────────────────────────────────────────────
 
 class SpeechRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000)

@@ -17,7 +17,8 @@ from app.models import Lead, Workspace
 from app.models_legal import LegalConsultation, LegalDeadline, LegalMatter
 from app.models_whatsapp import WhatsAppConversation
 from app.services import agenda as agenda_svc
-from app.timeutil import today_tr
+from app.services import sites
+from app.timeutil import day_label, today_tr, ts_label
 
 MAX_ROWS = 50
 
@@ -94,7 +95,9 @@ def get_agenda(db: Session, inp: dict) -> dict:
     rows = [d for d in a["deadlines"] if d.due_date < today or d.due_date >= start]
     return {
         "today": today,
-        "range": {"start": start, "end": end},
+        "today_label": day_label(today),
+        "range": {"start": start, "end": end,
+                  "label": f"{day_label(start)} – {day_label(end)}"},
         "overdue_count": len([d for d in rows if d.due_date < today]),
         "deadlines": [agenda_svc.deadline_dict(d, today) for d in rows[:MAX_ROWS]],
         "hearings": a["hearings"][:MAX_ROWS],
@@ -148,6 +151,7 @@ def list_matters(db: Session, inp: dict) -> dict:
                 "stage": m.stage, "role": m.role, "counterparty": m.counterparty,
                 "court": m.court, "reference": m.reference,
                 "next_hearing": m.next_hearing,
+                "next_hearing_label": day_label(m.next_hearing) if m.next_hearing else None,
                 "hearing_days_left": (m.next_hearing - today).days if m.next_hearing else None,
                 "open_deadlines": open_counts.get(m.id, 0),
             }
@@ -226,7 +230,8 @@ def list_leads(db: Session, inp: dict) -> dict:
         "leads": [
             {"id": l.id, "workspace": ws, "name": l.full_name, "status": l.status,
              "source": l.source, "city": l.city, "interest": l.package_interest,
-             "created_at": l.created_at, "last_contact_at": l.last_contact_at,
+             "created_at": l.created_at, "created_label": ts_label(l.created_at),
+             "last_contact_at": l.last_contact_at,
              "notes": (l.notes or "")[:300]}
             for l, ws in rows
         ],
@@ -253,11 +258,107 @@ def inbox_summary(db: Session, inp: dict) -> dict:
     }
 
 
+# ── İki ticari site (gespaenerji.com, gesmarketim.com) ───────
+
+SITE_ENUM = list(sites.SITES)
+
+
+def _site(v: Any) -> str:
+    return _choice(v, "site", set(SITE_ENUM)) or ""
+
+
+def site_overview(db: Session, inp: dict) -> dict:
+    return {"sites": [sites.card(s, sites.summary_with_ledger(db, s)) for s in SITE_ENUM]}
+
+
+def site_orders(db: Session, inp: dict) -> dict:
+    site = _site(inp.get("site"))
+    if not site:
+        raise ToolInputError("site gerekli: gespaenerji ya da gesmarketim")
+    data = sites.summary_with_ledger(db, site)
+    if "error" in data and "orders" not in data:
+        return {"site": site, "error": data["error"]}
+    o = data.get("orders", {})
+    return {"site": site, "days": o.get("days"), "count": o.get("count"),
+            "summary": {k: v for k, v in o.items() if k not in ("items", "days", "count")},
+            "orders": [_with_label(x) for x in o.get("items", [])[:_int(inp.get("limit"), "limit", 1, 50, 20)]],
+            "source": ("Gespa OS sipariş defteri (kalıcı)" if o.get("source") == "ledger"
+                       else "sitenin canlı özeti (Volume yoksa dağıtımda silinen dosya)"),
+            "note": "Alıcı kişisel bilgileri bu kaynakta yoktur (KVKK)."}
+
+
+def _with_label(order: dict) -> dict:
+    """Sipariş zamanına Türkiye saatiyle etiket ekler (siteler UTC ISO yazar)."""
+    return {**order, "created_label": ts_label(order.get("createdAt", ""))}
+
+
+def site_catalog(db: Session, inp: dict) -> dict:
+    site = _site(inp.get("site"))
+    if not site:
+        raise ToolInputError("site gerekli: gespaenerji ya da gesmarketim")
+    data = sites.fetch_summary(site)
+    if "error" in data:
+        return {"site": site, "error": data["error"]}
+    cat = data.get("catalog", {})
+    if site == "gespaenerji":
+        out = {"count": cat.get("count"), "campaign": cat.get("campaign"), "alerts": cat.get("alerts", [])}
+        if inp.get("include_products"):
+            out["products"] = cat.get("products", [])
+        out["usd_try"] = data.get("fx", {}).get("rate")
+    else:
+        out = {"count": cat.get("count"), "categories": cat.get("categories", []),
+               "out_of_stock": cat.get("outOfStock", []), "no_image": cat.get("noImage", []),
+               "price_overrides": cat.get("overrides", []), "usd_try": data.get("kur", {}).get("usdTry")}
+    return {"site": site, **out}
+
+
+def site_questions(db: Session, inp: dict) -> dict:
+    data = sites.fetch_summary("gespaenerji")
+    if "error" in data:
+        return {"site": "gespaenerji", "error": data["error"]}
+    return {"site": "gespaenerji", **data.get("qa", {}),
+            "note": "Onay /admin.html Soru & Cevap kartından verilir; JARVIS onaylayamaz (Faz A)."}
+
+
 def _schema(props: dict) -> dict:
     return {"type": "object", "properties": props, "additionalProperties": False}
 
 
 TOOLS = [
+    {
+        "name": "site_overview",
+        "description": (
+            "gespaenerji.com ve gesmarketim.com'un güncel durumu: son 24 saat ve 30 gün sipariş "
+            "sayıları, ödenmemiş/bekleyen siparişler, onay bekleyen soru-cevap, ürün uyarısı sayısı, "
+            "kur. Siteler, siparişler veya 'işler nasıl' soruları için önce bunu kullan."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "site_orders",
+        "description": "Bir sitenin son 30 gündeki siparişleri (tutar, durum, kalemler; alıcı kişisel bilgisi yok).",
+        "input_schema": {"type": "object", "properties": {
+            "site": {"type": "string", "enum": ["gespaenerji", "gesmarketim"]},
+            "limit": {"type": "integer", "description": "en çok kaç sipariş (varsayılan 20, en çok 50)"},
+        }, "required": ["site"], "additionalProperties": False},
+    },
+    {
+        "name": "site_catalog",
+        "description": (
+            "Bir sitenin ürün kataloğu uyarıları. gespaenerji: fiyatsız, görselsiz, stok ≤3, tükenen, "
+            "kampanya durumu (include_products=true ile ürün/fiyat listesi). gesmarketim: stokta "
+            "olmayan ve görselsiz ürünler, fiyat override'ları."
+        ),
+        "input_schema": {"type": "object", "properties": {
+            "site": {"type": "string", "enum": ["gespaenerji", "gesmarketim"]},
+            "include_products": {"type": "boolean", "description": "gespaenerji için tüm ürün ve ₺ fiyatlar"},
+        }, "required": ["site"], "additionalProperties": False},
+    },
+    {
+        "name": "site_questions",
+        "description": "gespaenerji.com'da onay bekleyen ziyaretçi soru-cevapları (mevzuat rehberi altında).",
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
     {
         "name": "get_agenda",
         "description": (
@@ -320,6 +421,10 @@ TOOLS = [
 ]
 
 HANDLERS: dict[str, Callable[[Session, dict], dict]] = {
+    "site_overview": site_overview,
+    "site_orders": site_orders,
+    "site_catalog": site_catalog,
+    "site_questions": site_questions,
     "get_agenda": get_agenda,
     "list_deadlines": list_deadlines,
     "list_matters": list_matters,

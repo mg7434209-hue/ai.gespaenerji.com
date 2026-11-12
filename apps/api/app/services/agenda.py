@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models_legal import LegalDeadline, LegalMatter
-from app.timeutil import today_tr
+from app.timeutil import day_label, today_tr
 
 
 def deadline_dict(d: LegalDeadline, today: date) -> dict:
@@ -17,6 +17,7 @@ def deadline_dict(d: LegalDeadline, today: date) -> dict:
         "id": d.id,
         "title": d.title,
         "due_date": d.due_date,
+        "due_label": day_label(d.due_date),
         "days_left": (d.due_date - today).days,
         "matter_id": d.matter_id,
         "matter_title": d.matter.title if d.matter else None,
@@ -65,7 +66,8 @@ def build_agenda(
         "critical": len([d for d in rows if d.critical and d.due_date >= today]),
         "hearings": [
             {"matter_id": m.id, "title": m.title, "court": m.court,
-             "date": m.next_hearing, "days_left": (m.next_hearing - today).days}
+             "date": m.next_hearing, "date_label": day_label(m.next_hearing),
+             "days_left": (m.next_hearing - today).days}
             for m in hearings
         ],
     }

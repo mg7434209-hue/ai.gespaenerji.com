@@ -135,7 +135,8 @@ def test_every_tool_is_read_only(db, data):
     event.listen(db, "before_flush", listener)
     try:
         for name in jarvis_tools.HANDLERS:
-            inp = {"matter_id": data["matter"].id} if name == "get_matter" else {}
+            inp = ({"matter_id": data["matter"].id} if name == "get_matter"
+                   else {"site": "gespaenerji"} if name in ("site_orders", "site_catalog") else {})
             jarvis_tools.run_tool(db, name, inp)
             db.flush()
         assert not db.new and not db.dirty and not db.deleted
