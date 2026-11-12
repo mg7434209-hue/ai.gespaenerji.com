@@ -91,10 +91,14 @@ def test_cards():
 
 def test_tools_use_summary(db):
     def fake(site, **kw):
-        return GESPA if site == "gespaenerji" else GESM
+        return {"gespaenerji": GESPA, "gesmarketim": GESM, "tarifesec": TARIFE, "cezarehberi": CEZA}[site]
     with mock.patch.object(sites, "fetch_summary", side_effect=fake):
         ov = jarvis_tools.run_tool(db, "site_overview", {})
-        assert [s["site"] for s in ov["sites"]] == ["gespaenerji", "gesmarketim"]
+        assert [s["site"] for s in ov["sites"]] == sites.ORDER
+        assert [s["kind"] for s in ov["sites"]] == ["shop", "shop", "leads", "leads", "content"]
+        apps = jarvis_tools.run_tool(db, "site_applications", {"site": "tarifesec", "limit": 1})
+        assert apps["count"] == 2 and apps["uncontacted"] == 1 and len(apps["applications"]) == 1
+        assert apps["applications"][0]["created_label"]
         orders = jarvis_tools.run_tool(db, "site_orders", {"site": "gespaenerji", "limit": 1})
         assert [o["ref"] for o in orders["orders"]] == ["GSP-1"]
         cat = jarvis_tools.run_tool(db, "site_catalog", {"site": "gesmarketim"})
@@ -109,3 +113,54 @@ def test_site_error_reaches_model(db):
     with mock.patch.object(sites, "fetch_summary", return_value={"error": "siteye ulaşılamadı (ConnectError)"}):
         out = jarvis_tools.run_tool(db, "site_orders", {"site": "gesmarketim"})
     assert out["error"].startswith("siteye ulaşılamadı")
+
+
+# ── Başvuru ve içerik siteleri ───────────────────────────────
+
+def _ago(hours):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
+
+TARIFE = {
+    "site": "tarifesec.net.tr",
+    "leads": {"days": 30, "count": 2, "uncontacted": 1, "items": [
+        {"id": 2, "city": "Antalya", "packageInterest": "Fiber 100", "source": "form", "contacted": False, "createdAt": _ago(2)},
+        {"id": 1, "city": "İzmir", "packageInterest": None, "source": "form", "contacted": True, "createdAt": _ago(90)},
+    ]},
+    "prices": {"packages": 40, "mobile": 12, "pendingApproval": 3, "stale": 2, "staleAfterHours": 48},
+    "scraper": {"lastRunAt": _ago(5), "lastError": {"operator": "turknet", "at": _ago(5), "message": "zaman aşımı"}},
+    "visitors": {"total": 5400, "today": 31, "last7": []},
+}
+CEZA = {
+    "site": "cezarehberi.com",
+    "visitors": {"total": 1017, "today": 17, "todayViews": 55,
+                 "last7": [{"day": "2026-11-12", "unique": 17, "views": 55}, {"day": "2026-11-11", "unique": 20, "views": 60}]},
+    "messages": {"unread": 2, "items": [{"konu": "oneri", "tarih": _ago(3), "okundu": False}]},
+    "articles": {"published": 11, "drafts": 1, "top": [{"slug": "hiz-cezasi", "title": "Hız cezası", "views": 42}]},
+    "petitions": {"today": 1, "last7": 6},
+    "bots": {"days": 7, "top": [{"bot": "GPTBot", "kind": "ai", "count": 9}]},
+}
+
+
+def test_lead_and_content_cards():
+    t = sites.card("tarifesec", TARIFE)
+    assert (t["ok"], t["kind"], t["leads_24h"], t["leads_30d"], t["leads_uncontacted"]) == (True, "leads", 1, 2, 1)
+    assert (t["price_pending"], t["price_stale"], t["scraper_error"]["operator"]) == (3, 2, "turknet")
+    assert t["alerts"] == 1 + 3 + 1
+    c = sites.card("cezarehberi", CEZA)
+    assert (c["kind"], c["visitors_today"], c["visitors_7d"], c["messages_unread"]) == ("content", 17, 37, 2)
+    assert c["top_articles"][0]["slug"] == "hiz-cezasi" and c["petitions_7d"] == 6 and c["bot_hits_7d"] == 9
+    e = sites.card("tarifesec", {"error": "bağlantı ayarlı değil", "configured": False})
+    assert e["ok"] is False and e["configured"] is False and e["kind"] == "leads"
+
+
+def test_unconfigured_sites_are_reported_not_hidden(db):
+    """Belirteci girilmemiş site kartta 'ayarlı değil' görünür; veri yokmuş gibi davranılmaz."""
+    with mock.patch.object(settings, "tarifesec_os_token", ""), mock.patch.object(settings, "ceza_os_token", ""), \
+         mock.patch.object(settings, "gespa_os_token", ""), mock.patch.object(settings, "gesm_os_token", ""), \
+         mock.patch.object(settings, "order_ingest_token", ""):
+        sites.clear_cache()
+        cards = sites.all_cards(db)
+    assert [c["site"] for c in cards] == sites.ORDER
+    assert all(c["ok"] is False and c.get("configured") is False for c in cards)

@@ -156,6 +156,17 @@ JARVIS'in önceliği iki ticari sitedir; hukuk kişisel ilgi alanı olarak ikinc
   (site, ref) tekil. Defter açıkken gespaenerji siparişleri sitenin özetinden değil buradan
   okunur (site uyusa ya da dağıtımda dosyası silinse de). Uç izin listesi dışı alanları
   (ör. `buyer`) atar; tabloda ad/telefon/e-posta/adres/TCKN alanı YOKTUR.
+- **Beş site tek ekranda** (`/siteler`, `/siparisler`, `/basvurular`): `sites.all_cards()`
+  sırayla gespaenerji, gesmarketim (mağaza) · tarifesec, internetbasvuru (başvuru) ·
+  cezarehberi (içerik) kartlarını döndürür. Bağlı olmayan site "henüz bağlı değil" görünür;
+  veri yokmuş gibi gizlenmez. Ek ayarlar: `TARIFESEC_SITE_URL` + `TARIFESEC_OS_TOKEN`,
+  `CEZA_SITE_URL` + `CEZA_OS_TOKEN` (sitelerdeki `OS_TOKEN` ile aynı).
+- gesmarketim siparişleri de deftere yazılır (aynı uç, `site: "gesmarketim"`). Site deftere
+  henüz hiç yazmadıysa siparişler özetten okunmaya devam eder.
+- **Başvuru defteri:** internetbasvuru.com başvuruları kendi Turhost panelinde tutulur; site
+  her başvuruda kişisel verisiz özeti (il, ilçe, paket, kaynak, kapsama) `POST
+  /api/ingest/applications` ile gönderir → `site_applications`. Belirteç `ORDER_INGEST_TOKEN`
+  ile aynıdır. tarifesec başvuruları kendi özet ucundan okunur. JARVIS aracı `site_applications`.
 
 ---
 

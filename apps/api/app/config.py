@@ -48,8 +48,14 @@ class Settings(BaseSettings):
     gesm_site_url: str = "https://www.gesmarketim.com"
     gesm_os_token: str = ""
     # Sipariş defteri: sitelerin POST /api/ingest/orders belirteci (≥32 karakter).
-    # gespaenerji'deki OS_INGEST_TOKEN ile AYNI değer.
+    # Sitelerdeki (gespaenerji, gesmarketim, internetbasvuru) OS_INGEST_TOKEN ile AYNI değer.
+    # Aynı belirteç başvuru defterini de (POST /api/ingest/applications) açar.
     order_ingest_token: str = ""
+    # İçerik / başvuru siteleri — aynı salt okunur /api/os/summary sözleşmesi.
+    tarifesec_site_url: str = "https://www.tarifesec.net.tr"
+    tarifesec_os_token: str = ""
+    ceza_site_url: str = "https://www.cezarehberi.com"
+    ceza_os_token: str = ""
 
     # Sabah brifingi — BRIEF_* / JARVIS_BRIEF_MODEL
     jarvis_brief_model: str = "claude-sonnet-5-5"

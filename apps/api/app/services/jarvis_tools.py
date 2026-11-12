@@ -27,10 +27,10 @@ MAX_ROWS = 50
 # bağlanınca (ör. tarifesec API'si) buradaki listeyi güncelle.
 LEAD_SOURCE = {
     "reads": "Gespa OS'in kendi leads tablosu (Lead Yönetimi ekranından elle girilen kayıtlar)",
+    "other_tools": "Site başvuruları için site_applications aracını kullan "
+                   "(tarifesec.net.tr ve internetbasvuru.com; kişisel veri içermez).",
     "not_connected": [
-        "internetbasvuru.com başvuruları",
-        "tarifesec.net.tr başvuruları",
-        "gespaenerji.com ve gesmarketim.com formları/siparişleri",
+        "gespaenerji.com ve gesmarketim.com iletişim formları (siparişler site_orders ile okunur)",
         "WhatsApp mesajları (gelen mesajdan otomatik lead açılmıyor)",
     ],
 }
@@ -258,7 +258,7 @@ def inbox_summary(db: Session, inp: dict) -> dict:
     }
 
 
-# ── İki ticari site (gespaenerji.com, gesmarketim.com) ───────
+# ── Siteler (sipariş: gespaenerji, gesmarketim · başvuru ve içerik: sites.ORDER) ───────
 
 SITE_ENUM = list(sites.SITES)
 
@@ -268,7 +268,30 @@ def _site(v: Any) -> str:
 
 
 def site_overview(db: Session, inp: dict) -> dict:
-    return {"sites": [sites.card(s, sites.summary_with_ledger(db, s)) for s in SITE_ENUM]}
+    return {"sites": sites.all_cards(db)}
+
+
+def site_applications(db: Session, inp: dict) -> dict:
+    site = _choice(inp.get("site"), "site", {"tarifesec", "internetbasvuru"})
+    if not site:
+        raise ToolInputError("site gerekli: tarifesec ya da internetbasvuru")
+    limit = _int(inp.get("limit"), "limit", 1, 50, 20)
+    note = "Ad ve telefon bu kaynakta yoktur (KVKK); aramak için sitenin kendi paneline bak."
+    if site == "internetbasvuru":
+        if len(sites.settings.order_ingest_token) < 32:
+            return {"site": site, "error": "başvuru defteri kapalı (ORDER_INGEST_TOKEN tanımlı değil)"}
+        a = sites.applications(db, site)
+        return {"site": site, **{k: v for k, v in a.items() if k != "items"},
+                "applications": [_with_label(x) for x in a["items"][:limit]],
+                "source": "Gespa OS başvuru defteri (site her başvuruda yazar)", "note": note}
+    data = sites.fetch_summary(site)
+    if "error" in data:
+        return {"site": site, "error": data["error"]}
+    leads = data.get("leads", {})
+    return {"site": site, "days": leads.get("days"), "count": leads.get("count"),
+            "uncontacted": leads.get("uncontacted"),
+            "applications": [_with_label(x) for x in leads.get("items", [])[:limit]],
+            "source": "sitenin canlı özeti (kendi veritabanı)", "note": note}
 
 
 def site_orders(db: Session, inp: dict) -> dict:
@@ -328,11 +351,25 @@ TOOLS = [
     {
         "name": "site_overview",
         "description": (
-            "gespaenerji.com ve gesmarketim.com'un güncel durumu: son 24 saat ve 30 gün sipariş "
-            "sayıları, ödenmemiş/bekleyen siparişler, onay bekleyen soru-cevap, ürün uyarısı sayısı, "
-            "kur. Siteler, siparişler veya 'işler nasıl' soruları için önce bunu kullan."
+            "Bütün sitelerin güncel durumu tek çağrıda. gespaenerji.com ve gesmarketim.com: son 24 saat ve "
+            "30 gün sipariş sayıları, ödenmemiş/bekleyen siparişler, onay bekleyen soru-cevap, ürün uyarıları, kur. "
+            "tarifesec.net.tr: başvurular, aranmamış başvuru, onay bekleyen fiyat değişikliği, tarayıcı hatası. "
+            "internetbasvuru.com: başvuru sayıları, il ve paket dağılımı. cezarehberi.com: ziyaretçi, okunmamış "
+            "iletişim mesajı, en çok okunan yazılar. 'İşler nasıl', 'bugün ne var' sorularında önce bunu kullan."
         ),
         "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "site_applications",
+        "description": (
+            "Başvuru sitelerine son 30 günde gelen başvurular: tarifesec.net.tr (şehir, ilgilenilen paket, "
+            "aranıp aranmadığı) ve internetbasvuru.com (il, ilçe, paket, kapsama durumu, il/paket dağılımı). "
+            "Ad ve telefon içermez."
+        ),
+        "input_schema": {"type": "object", "properties": {
+            "site": {"type": "string", "enum": ["tarifesec", "internetbasvuru"]},
+            "limit": {"type": "integer", "description": "En çok kaç başvuru (varsayılan 20, en çok 50)"},
+        }, "required": ["site"], "additionalProperties": False},
     },
     {
         "name": "site_orders",
@@ -403,7 +440,7 @@ TOOLS = [
         "name": "list_leads",
         "description": (
             "Potansiyel müşteriler (lead). Durumlar: new, contacted, offered (teklif verildi), won, lost. "
-            "Yalnız Gespa OS'in kendi tablosunu okur; diğer sitelerin başvuruları bağlı değildir "
+            "Yalnız Gespa OS'in kendi tablosunu okur; site başvuruları için site_applications kullanılır "
             "(çıktıdaki data_source alanı)."
         ),
         "input_schema": _schema({
@@ -422,6 +459,7 @@ TOOLS = [
 
 HANDLERS: dict[str, Callable[[Session, dict], dict]] = {
     "site_overview": site_overview,
+    "site_applications": site_applications,
     "site_orders": site_orders,
     "site_catalog": site_catalog,
     "site_questions": site_questions,

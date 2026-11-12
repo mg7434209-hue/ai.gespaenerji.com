@@ -120,8 +120,9 @@ def test_empty_lead_table_reports_source_not_absence(db):
     assert out["count"] == 0
     src = out["data_source"]
     assert src["table_total"] == 0
-    assert any("internetbasvuru" in s for s in src["not_connected"])
-    assert any("tarifesec" in s for s in src["not_connected"])
+    # Site başvuruları artık bağlı: lead çıktısı doğru araca yönlendirir
+    assert "site_applications" in src["other_tools"]
+    assert not any("tarifesec" in s or "internetbasvuru" in s for s in src["not_connected"])
     assert "lead yok" in jarvis.SYSTEM_PROMPT and "data_source" in jarvis.SYSTEM_PROMPT
     assert jarvis_tools.list_workspaces(db, {})["lead_data_source"]["table_total"] == 0
 
@@ -136,7 +137,8 @@ def test_every_tool_is_read_only(db, data):
     try:
         for name in jarvis_tools.HANDLERS:
             inp = ({"matter_id": data["matter"].id} if name == "get_matter"
-                   else {"site": "gespaenerji"} if name in ("site_orders", "site_catalog") else {})
+                   else {"site": "gespaenerji"} if name in ("site_orders", "site_catalog")
+                   else {"site": "internetbasvuru"} if name == "site_applications" else {})
             jarvis_tools.run_tool(db, name, inp)
             db.flush()
         assert not db.new and not db.dirty and not db.deleted
@@ -269,3 +271,17 @@ def test_chat_endpoint_and_latest(api, db, data):
     assert r.status_code == 200 and r.json()["reply"] == "Merhaba Mustafa."
     latest = api.get("/api/jarvis/conversations/latest").json()
     assert [m["text"] for m in latest["messages"]] == ["selam", "Merhaba Mustafa."]
+
+
+def test_orders_and_applications_screens(api, db):
+    """Siparişler / Başvurular ekranları JARVIS araçlarıyla aynı kaynağı okur; site bağlı değilse hata görünür."""
+    from app.services import sites
+    with mock.patch.object(settings, "gespa_os_token", ""), mock.patch.object(settings, "gesm_os_token", ""), \
+         mock.patch.object(settings, "tarifesec_os_token", ""), mock.patch.object(settings, "order_ingest_token", ""):
+        sites.clear_cache()
+        o = api.get("/api/jarvis/orders").json()["sites"]
+        a = api.get("/api/jarvis/applications").json()["sites"]
+        s = api.get("/api/jarvis/sites").json()["sites"]
+    assert [x["site"] for x in o] == ["gespaenerji", "gesmarketim"] and all("error" in x and x["label"] for x in o)
+    assert [x["site"] for x in a] == ["tarifesec", "internetbasvuru"] and all("error" in x for x in a)
+    assert [x["site"] for x in s] == sites.ORDER
