@@ -119,3 +119,15 @@ def test_applications_ledger_has_no_pii(api, db):
     assert (card["ok"], card["leads_24h"], card["leads_30d"], card["covered"]) == (True, 1, 1, 1)
     assert card["by_city"] == [{"name": "Antalya", "count": 1}]
     assert out["count"] == 1 and out["applications"][0]["district"] == "Manavgat" and out["applications"][0]["created_label"]
+
+
+def test_added_column_reaches_existing_table():
+    """Canlıda site_orders tablosu 'fulfilled' sütunu olmadan oluşmuştu; açılış onu ekler."""
+    from sqlalchemy import create_engine, inspect, text
+    from app.seed import ensure_columns
+    eng = create_engine("sqlite://")
+    with eng.begin() as c:
+        c.execute(text("CREATE TABLE site_orders (id INTEGER PRIMARY KEY, site VARCHAR(32), ref VARCHAR(64))"))
+    ensure_columns(eng)
+    ensure_columns(eng)  # ikinci çalıştırma zararsız
+    assert "fulfilled" in {c["name"] for c in inspect(eng).get_columns("site_orders")}
