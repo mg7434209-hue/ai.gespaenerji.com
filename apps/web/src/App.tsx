@@ -1,3 +1,4 @@
+import { JarvisChat } from './components/JarvisChat'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Layout } from './components/Layout'
@@ -21,6 +22,7 @@ import { LegalBoard } from './pages/LegalBoard'
 export default function App() {
   return (
     <Routes>
+      <Route path="/jarvis" element={<ProtectedRoute><JarvisChat fullPage /></ProtectedRoute>} />
       <Route path="/login" element={<Login />} />
       <Route
         path="/"

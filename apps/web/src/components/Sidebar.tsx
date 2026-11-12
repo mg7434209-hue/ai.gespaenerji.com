@@ -17,6 +17,7 @@ import { useAuth } from '@/lib/auth'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { to: '/jarvis', label: 'JARVIS Sohbet', icon: Bot },
   { to: '/inbox', label: 'Inbox', icon: MessageSquare },
   { to: '/roadmap', label: 'Yol Haritası', icon: Map },
   { to: '/workspaces', label: 'Workspaces', icon: Briefcase },

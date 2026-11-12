@@ -321,3 +321,44 @@ Lokal `.env` için `.env.example`'ı `apps/api/.env` olarak kopyala ve doldur.
 ## 📄 Lisans
 
 Özel kullanım — Gespa bünyesinde geliştirilmiştir.
+
+## Telefonda JARVIS sohbeti
+
+Menüde **JARVIS Sohbet** veya `/jarvis` adresi, telefona uygun tam ekran sohbeti açar.
+Mikrofon düğmesi Türkçe konuşmayı mesaj alanına yazar; gönderim kullanıcı tarafından yapılır.
+**Sesli yanıt** açıldığında tarayıcının ses motoru yeni yanıtları okur. Mikrofon izni ve HTTPS
+gerekir. Desteklenmeyen tarayıcılarda telefon klavyesinin mikrofonu veya yazılı sohbet
+kullanılır. Arka planda sürekli dinleme veya telefon araması bu sürüme dahil değildir.
+
+Ana ekrana eklemek için iPhone Safari'de Paylaş → Ana Ekrana Ekle; Android'de
+tarayıcı menüsündeki Ana ekrana ekle seçeneğini kullanın. Uygulama internet bağlantısı ister;
+özel konuşmalar çevrimdışı önbelleğe alınmaz. Aynı Gespa OS hesabıyla giriş yapılan
+cihazlarda sunucudaki son web sohbeti yüklenir.
+
+Bu repo JARVIS için mevcut Claude bağlantısını kullanır (`ANTHROPIC_API_KEY`).
+ChatGPT Sites üzerinde çalışan ayrı J.A.R.V.I.S uygulamasının OpenAI anahtarı ve
+konuşma veritabanı bu repoya otomatik taşınmaz. Anahtarlar yalnız hosting ortamının
+gizli değişkenlerinde tutulur; repoya veya tarayıcı koduna eklenmez.
+
+Alan adı olarak `ai.gespaenerji.com` kullanılacaksa Railway servisinin Custom Domain
+bölümüne bu adı ekleyin ve DNS hedefini Railway'in verdiği değerle eşleştirin.
+Repo ismi tek başına DNS veya yayın oluşturmaz.
+
+### Doğal Türkçe ses
+
+JARVIS artık tarayıcının robotik sesi yerine OpenAI `gpt-4o-mini-tts` ile samimi
+Türkçe ses üretir. Railway web servisinde `OPENAI_API_KEY` gizli değişkeni gereklidir;
+Sites üzerinde kayıtlı anahtar Railway'e otomatik aktarılmaz. İsteğe bağlı
+`JARVIS_TTS_VOICE` varsayılanı `cedar`dır. Ses üretimi API bakiyesinden ücretlendirilir.
+
+`POST /api/jarvis/speech` oturum gerektirir, metni 4000 karakterle sınırlar ve MP3
+yanıtına `Cache-Control: no-store, private` ekler. Oynatıcı son sesi sadece sekme
+belleğinde tutar; yeni ses veya sayfa kapanışında temizler. Otomatik oynatma
+engellenirse yerel ses oynatıcısındaki oynat düğmesine dokunun. Uzun yanıtların
+ilk 4000 karakteri okunur; tam metin ekranda kalır.
+
+Ses gecikmesi: OpenAI sesi sunucudan parça parça aktarılır. `audio/mpeg`
+MediaSource desteği olan tarayıcılarda ilk parça gelince oynatma başlar. Diğer
+tarayıcılarda MP3 tamamlandığında yerel oynatıcıyla çalınır. Otomatik oynatma
+izni tarayıcıya bağlıdır. Mikrofon artık ilk kelimeyi hemen göndermez; tüm
+tanınan cümleyi dinleme bittiğinde veya 1,6 saniyelik sessizlikten sonra gönderir.

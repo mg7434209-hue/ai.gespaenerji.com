@@ -3,7 +3,8 @@ import hmac
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -141,3 +142,66 @@ def briefing_preview(db: Session = Depends(get_db), user: User = Depends(get_cur
 async def briefing_send(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Elle gönderim (saat penceresi yok sayılır)."""
     return await briefing.run_morning(db, manual=True)
+
+
+# ── Ses ──────────────────────────────────────────────────────
+
+class SpeechRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/speech")
+async def speech(data: SpeechRequest, user: User = Depends(get_current_user)):
+    """Ses yalnız oturum açmış kullanıcı için üretilir, gizli yanıtlar önbelleğe alınmaz."""
+    import httpx
+    from app.config import settings
+    if not data.text.strip():
+        raise HTTPException(400, "Seslendirilecek metin boş olamaz.")
+    if not settings.openai_api_key:
+        raise HTTPException(503, "Doğal ses için Railway servisinde OPENAI_API_KEY tanımlanmalı. Sites üzerindeki anahtar buraya otomatik aktarılmaz.")
+    voice = settings.jarvis_tts_voice if settings.jarvis_tts_voice in {"coral", "ash", "sage", "nova", "onyx", "shimmer", "alloy", "echo", "fable", "ballad", "verse", "marin", "cedar"} else "cedar"
+    client = httpx.AsyncClient(timeout=45.0)
+    try:
+        request = client.build_request("POST", "https://api.openai.com/v1/audio/speech",
+            headers={"Authorization": "Bearer " + settings.openai_api_key},
+            json={"model": "gpt-4o-mini-tts", "voice": voice,
+                  "input": data.text, "response_format": "mp3", "speed": 1.03,
+                  "instructions": "İstanbul Türkçesiyle, yakın bir dostuyla konuşan deneyimli bir kişisel asistan gibi konuş. Sesin tok, sıcak ve yumuşak olsun; doğal bir alt perdede, rahat ve kendinden emin konuş. Samimi ol ama yapmacık neşe veya aşırı resmiyet kullanma. Cümle içinde doğal iniş çıkışlar yap, kelime sonlarını uzatma. Duraklamaları kısa tut; akıcı ve canlı bir sohbet ritmi kullan. Haber spikeri, reklam veya robot gibi okuma. Soru cümlelerini nazik bir merakla, açıklamaları anlaşılır ve güven veren biçimde söyle."})
+        result = await client.send(request, stream=True)
+    except httpx.TimeoutException:
+        await client.aclose()
+        raise HTTPException(504, "Sesin hazırlanması zaman aşımına uğradı. Yeniden deneyin.")
+    except httpx.RequestError:
+        await client.aclose()
+        raise HTTPException(502, "Ses hizmetine bağlanılamadı. Yeniden deneyin.")
+    if result.status_code != 200:
+        await result.aread()
+        await result.aclose()
+        await client.aclose()
+        try:
+            code = result.json().get("error", {}).get("code", "")
+        except (ValueError, AttributeError):
+            code = ""
+        if code in {"insufficient_quota", "credit_balance_exhausted"}:
+            message = "OpenAI API ses kredisi yetersiz. API faturalandırmasını kontrol edin."
+        elif result.status_code == 401:
+            message = "Ses hizmeti API anahtarını doğrulayamadı. Railway anahtarını kontrol edin."
+        elif result.status_code == 429:
+            message = "Ses hizmetinin istek sınırına ulaşıldı. Biraz sonra yeniden deneyin."
+        else:
+            message = "Doğal ses üretilemedi. Model erişimini ve API ayarlarını kontrol edin."
+        raise HTTPException(502, message)
+    if "audio/" not in result.headers.get("content-type", ""):
+        await result.aclose()
+        await client.aclose()
+        raise HTTPException(502, "Ses hizmetinden geçerli bir ses dosyası alınamadı.")
+
+    async def audio_chunks():
+        try:
+            async for chunk in result.aiter_bytes():
+                yield chunk
+        finally:
+            await result.aclose()
+            await client.aclose()
+
+    return StreamingResponse(audio_chunks(), media_type="audio/mpeg", headers={"Cache-Control": "no-store, private", "X-Content-Type-Options": "nosniff", "X-Accel-Buffering": "no"})
