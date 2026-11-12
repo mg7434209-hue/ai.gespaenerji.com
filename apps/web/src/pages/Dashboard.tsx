@@ -79,7 +79,7 @@ export function Dashboard() {
       <JarvisChat />
 
       {/* Ana iş: iki ticari site */}
-      <SiteCards />
+      <SiteCards only={['shop']} title="Mağazalar — durum" />
 
       {/* KPI Cards — Superonline */}
       <div>

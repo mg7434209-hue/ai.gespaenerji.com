@@ -54,6 +54,7 @@ Biçim:
 - İlk satır: "Günaydın — <gün ay, haftanın günü>".
 - Her site için kısa bir bölüm: son 24 saatteki siparişler (varsa tutar ve ürün), ödenmemiş/bekleyen siparişler, onay bekleyen soru-cevaplar, ürün uyarıları (stok, fiyat, görsel, kampanya).
 - Bir sitenin verisi alınamadıysa (error) bunu tek satırla söyle; "sipariş yok" deme.
+- "others" bölümü varsa her site için TEK satır: tarifesec ve internetbasvuru'da son 24 saatteki başvuru (leads_24h) ve aranmamış başvuru; cezarehberi'nde bugünkü ziyaretçi ve okunmamış mesaj. Sayı 0 ise o siteyi anma.
 - Sonra varsa: dikkat bekleyen WhatsApp konuşmaları.
 - Hukuk yalnız "legal" bölümünde gecikmiş ya da bugün dolan süre varsa tek satır (⚠ ile); yoksa hiç anma.
 - Kısa maddeler; tablo ve başlık yok. En çok 1500 karakter."""
@@ -63,9 +64,12 @@ def collect(db: Session) -> dict:
     Siteler TAZE okunur (önbellek atlanır)."""
     today = today_tr()
     agenda = tools.get_agenda(db, {"start_date": str(today), "end_date": str(today)})
+    cards = sites.all_cards(db, fresh=True)
     return {
         "today": today,
-        "sites": [sites.card(s, sites.summary_with_ledger(db, s, fresh=True)) for s in sites.SITES],
+        "sites": [c for c in cards if c["site"] in sites.SITES],
+        # Başvuru ve içerik siteleri: yalnız bağlı olanlar (bağlı değilse hiç anılmaz)
+        "others": [c for c in cards if c["site"] not in sites.SITES and c.get("ok")],
         # Hukuk ikinci planda: yalnız gecikmiş ve bugün dolan süreler
         "legal": [d for d in agenda["deadlines"] if d["due_date"] <= today],
         "inbox": tools.inbox_summary(db, {}),
@@ -153,6 +157,20 @@ def plain_text(data: dict) -> str:
                 lines.append(f"• stokta olmayan ürün: {card['out_of_stock']}")
             if card["no_image"]:
                 lines.append(f"• görseli olmayan ürün: {card['no_image']}")
+    extra = []
+    for card in data.get("others", []):
+        if card["kind"] == "leads" and (card.get("leads_24h") or card.get("leads_uncontacted")):
+            t = f"• {card['label']}: son 24 saatte {card.get('leads_24h', 0)} başvuru"
+            if card.get("leads_uncontacted"):
+                t += f" · aranmamış {card['leads_uncontacted']}"
+            extra.append(t)
+        elif card["kind"] == "content" and (card.get("visitors_today") or card.get("messages_unread")):
+            t = f"• {card['label']}: bugün {card.get('visitors_today') or 0} ziyaretçi"
+            if card.get("messages_unread"):
+                t += f" · okunmamış mesaj {card['messages_unread']}"
+            extra.append(t)
+    if extra:
+        lines += ["", "Diğer siteler:"] + extra
     if c["attention"]:
         lines += ["", f"Dikkat bekleyen WhatsApp konuşması: {c['attention']}"]
     if data["legal"]:

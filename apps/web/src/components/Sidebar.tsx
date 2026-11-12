@@ -11,19 +11,29 @@ import {
   Map,
   Scale,
   X,
+  Globe,
+  ShoppingBag,
+  ClipboardList,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '@/lib/auth'
 
+// Günlük iş üstte; seyrek kullanılanlar "Diğer" altında (silinmedi, yalnız aşağı alındı).
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/jarvis', label: 'JARVIS Sohbet', icon: Bot },
-  { to: '/inbox', label: 'Inbox', icon: MessageSquare },
-  { to: '/roadmap', label: 'Yol Haritası', icon: Map },
-  { to: '/workspaces', label: 'Workspaces', icon: Briefcase },
+  { to: '/', label: 'Ana Sayfa', icon: LayoutDashboard, exact: true },
+  { to: '/siteler', label: 'Siteler', icon: Globe },
+  { to: '/siparisler', label: 'Siparişler', icon: ShoppingBag },
+  { to: '/basvurular', label: 'Başvurular', icon: ClipboardList },
+  { to: '/jarvis', label: 'JARVIS', icon: Bot },
+  { to: '/inbox', label: 'WhatsApp', icon: MessageSquare },
+]
+
+const otherItems = [
   { to: '/leads', label: 'Lead Yönetimi', icon: Users },
-  { to: '/agents', label: 'Dijital Ofis', icon: Bot },
   { to: '/hukuk', label: 'Hukuk Ofisi', icon: Scale },
+  { to: '/agents', label: 'Dijital Ofis', icon: Bot },
+  { to: '/workspaces', label: 'Workspaces', icon: Briefcase },
+  { to: '/roadmap', label: 'Yol Haritası', icon: Map },
   { to: '/settings', label: 'Ayarlar', icon: Settings },
 ]
 
@@ -73,28 +83,9 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const isActive = item.exact
-            ? location.pathname === item.to
-            : location.pathname.startsWith(item.to)
-
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={clsx(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-brand-500/10 text-brand-400'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50',
-              )}
-            >
-              <Icon className="w-5 h-5 shrink-0" />
-              <span>{item.label}</span>
-            </NavLink>
-          )
-        })}
+        {navItems.map((item) => <Item key={item.to} item={item} path={location.pathname} />)}
+        <div className="pt-4 pb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-600">Diğer</div>
+        {otherItems.map((item) => <Item key={item.to} item={item} path={location.pathname} />)}
       </nav>
 
       {/* User */}
@@ -115,5 +106,24 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
       </div>
     </aside>
     </>
+  )
+}
+
+function Item({ item, path }: { item: { to: string; label: string; icon: typeof Bot; exact?: boolean }; path: string }) {
+  const Icon = item.icon
+  const isActive = item.exact ? path === item.to : path.startsWith(item.to)
+  return (
+    <NavLink
+      to={item.to}
+      className={clsx(
+        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+        isActive
+          ? 'bg-brand-500/10 text-brand-400'
+          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50',
+      )}
+    >
+      <Icon className="w-5 h-5 shrink-0" />
+      <span>{item.label}</span>
+    </NavLink>
   )
 }

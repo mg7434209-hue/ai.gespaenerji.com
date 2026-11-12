@@ -9,6 +9,9 @@ import { Leads } from './pages/Leads'
 import { Agents } from './pages/Agents'
 import { Settings } from './pages/Settings'
 import { Inbox } from './pages/Inbox'
+import { Sites } from './pages/Sites'
+import { Orders } from './pages/Orders'
+import { Applications } from './pages/Applications'
 import { Roadmap } from './pages/Roadmap'
 import { Legal } from './pages/Legal'
 import { LegalAgentDetail } from './pages/LegalAgentDetail'
@@ -33,6 +36,9 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="siteler" element={<Sites />} />
+        <Route path="siparisler" element={<Orders />} />
+        <Route path="basvurular" element={<Applications />} />
         <Route path="inbox" element={<Inbox />} />
         <Route path="roadmap" element={<Roadmap />} />
         <Route path="workspaces" element={<Workspaces />} />

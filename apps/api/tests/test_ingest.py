@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.config import settings
-from app.models_orders import SiteOrder
+from app.models_orders import SiteApplication, SiteOrder
 from app.services import jarvis_tools, sites
 
 TOKEN = "ingest-belirteci-0123456789abcdefghijk"
@@ -81,3 +81,41 @@ def test_ledger_off_uses_summary(db):
          mock.patch.object(sites, "fetch_summary", return_value={"orders": {"count": 9, "items": []}}):
         d = sites.summary_with_ledger(db, "gespaenerji")
     assert d["orders"]["count"] == 9
+
+
+# ── gesmarketim siparişleri ve başvuru defteri ───────────────
+
+def test_gesmarketim_orders_and_empty_ledger_fallback(api, db):
+    summary = {"orders": {"count": 4, "unpaid": 2, "open": 3, "items": []}, "catalog": {}, "kur": {}, "visitors": {}}
+    with mock.patch.object(sites, "fetch_summary", return_value=summary):
+        # Site deftere henüz hiç yazmadıysa özetteki siparişler kalır
+        assert sites.summary_with_ledger(db, "gesmarketim")["orders"]["count"] == 4
+        api.post("/api/ingest/orders", json={"site": "gesmarketim", "orders": [
+            _order(ref="GM1", channel="havale", status="pending", fulfilled=False),
+            _order(ref="GM2", channel="kart", status="paid", paidTL=7200, fulfilled=True),
+        ]}, headers={"X-Ingest-Token": TOKEN})
+        card = sites.card("gesmarketim", sites.summary_with_ledger(db, "gesmarketim"))
+    assert (card["orders_30d"], card["orders_unpaid_30d"], card["orders_open_30d"], card["orders_24h"]) == (2, 1, 1, 2)
+
+
+def test_applications_ledger_has_no_pii(api, db):
+    h = {"X-Ingest-Token": TOKEN}
+    app_ = {"ref": "abc123def456", "createdAt": (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat(),
+            "city": "Antalya", "district": "Manavgat", "package": "Superbox 100 GB", "monthlyTL": 899,
+            "source": "hero", "coverage": "covered", "covered": True,
+            "name": "Ayşe Gizli", "phone": "05551112233", "address": "Gizli Sok. 1"}
+    assert api.post("/api/ingest/applications", json={"site": "amazon", "applications": []}, headers=h).status_code == 400
+    assert api.post("/api/ingest/applications", json={"site": "internetbasvuru", "applications": [app_]}).status_code == 403
+    for _ in range(2):  # aynı başvuru iki kez gelirse tek kayıt
+        r = api.post("/api/ingest/applications", json={"site": "internetbasvuru", "applications": [app_]}, headers=h)
+        assert r.status_code == 200
+    row = db.query(SiteApplication).one()
+    dump = repr({c.name: getattr(row, c.name) for c in SiteApplication.__table__.columns})
+    for leak in ("Ayşe", "0555", "Gizli Sok"):
+        assert leak not in dump
+    with mock.patch.object(settings, "order_ingest_token", TOKEN):
+        card = sites.ledger_card(db, "internetbasvuru")
+        out = jarvis_tools.run_tool(db, "site_applications", {"site": "internetbasvuru"})
+    assert (card["ok"], card["leads_24h"], card["leads_30d"], card["covered"]) == (True, 1, 1, 1)
+    assert card["by_city"] == [{"name": "Antalya", "count": 1}]
+    assert out["count"] == 1 and out["applications"][0]["district"] == "Manavgat" and out["applications"][0]["created_label"]

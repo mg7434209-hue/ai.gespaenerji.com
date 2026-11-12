@@ -105,8 +105,26 @@ def get_conversation(conv_id: int, db: Session = Depends(get_db), user: User = D
 @router.get("/sites")
 def sites_cards(fresh: bool = False, db: Session = Depends(get_db),
                 user: User = Depends(get_current_user)):
-    """Ana sayfa kartları: gespaenerji.com + gesmarketim.com kısa özeti."""
-    return {"sites": [sites.card(s, sites.summary_with_ledger(db, s, fresh=fresh)) for s in sites.SITES]}
+    """Siteler ekranı ve ana sayfa kartları: beş sitenin kısa özeti."""
+    return {"sites": sites.all_cards(db, fresh=fresh)}
+
+
+@router.get("/orders")
+def orders_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Siparişler ekranı: iki ticari sitenin son 30 gün siparişleri (alıcı bilgisi yok).
+    JARVIS'in site_orders aracıyla AYNI kaynak — ekran ve sohbet birbirini tutar."""
+    from app.services import jarvis_tools
+    return {"sites": [{"label": sites.SITES[s]["label"],
+                       **jarvis_tools.site_orders(db, {"site": s, "limit": 50})} for s in sites.SITES]}
+
+
+@router.get("/applications")
+def applications_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Başvurular ekranı: tarifesec + internetbasvuru (ad ve telefon yok)."""
+    from app.services import jarvis_tools
+    labels = {"tarifesec": "tarifesec.net.tr", "internetbasvuru": "internetbasvuru.com"}
+    return {"sites": [{"label": labels[s],
+                       **jarvis_tools.site_applications(db, {"site": s, "limit": 50})} for s in labels]}
 
 
 # ── Sabah brifingi ───────────────────────────────────────────

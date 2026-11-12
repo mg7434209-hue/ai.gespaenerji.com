@@ -313,20 +313,105 @@ export interface JarvisChatResponse {
   ok: boolean
 }
 
-// ── İki ticari site (Gespa OS özeti) ─────────────────────────
+// ── Siteler (Gespa OS özeti) ─────────────────────────────────
+export type SiteKey = 'gespaenerji' | 'gesmarketim' | 'tarifesec' | 'internetbasvuru' | 'cezarehberi'
+
 export interface SiteCard {
-  site: 'gespaenerji' | 'gesmarketim'
+  site: SiteKey
   label: string
+  kind: 'shop' | 'leads' | 'content'
+  url?: string
   ok: boolean
   error?: string
+  configured?: boolean
+  alerts?: number
+  // mağaza
   orders_24h?: number
   orders_30d?: number
   orders_pending_30d?: number
   orders_unpaid_30d?: number
+  orders_open_30d?: number
+  orders_source?: string
   qa_pending?: number
-  alerts?: number
   alert_items?: { type: string; id?: string; name?: string; stock?: number; endsAt?: string }[]
   out_of_stock?: number
   no_image?: number
   usd_try?: number
+  // başvuru
+  leads_24h?: number
+  leads_7d?: number
+  leads_30d?: number
+  leads_uncontacted?: number
+  price_pending?: number
+  price_stale?: number
+  scraper_error?: { operator?: string; at?: string; message?: string } | null
+  covered?: number
+  not_covered?: number
+  by_city?: { name: string; count: number }[]
+  by_package?: { name: string; count: number }[]
+  note?: string
+  // içerik
+  visitors_today?: number
+  views_today?: number
+  visitors_7d?: number
+  visitors_total?: number
+  messages_unread?: number
+  articles_published?: number
+  top_articles?: { slug: string; title: string; views: number }[]
+  petitions_7d?: number
+  bot_hits_7d?: number
+}
+
+export interface SiteOrderRow {
+  ref?: string
+  no?: string
+  channel?: string
+  pay?: string
+  status?: string
+  paid?: boolean
+  fulfilled?: boolean | null
+  done?: boolean
+  createdAt?: string
+  created_label?: string
+  totalTL?: number
+  total?: number
+  desc?: string
+  items?: { id?: string; name?: string; qty?: number }[]
+}
+
+export interface SiteOrders {
+  site: SiteKey
+  label: string
+  error?: string
+  count?: number
+  source?: string
+  orders?: SiteOrderRow[]
+}
+
+export interface SiteApplicationRow {
+  ref?: string
+  id?: number
+  createdAt?: string
+  created_label?: string
+  city?: string | null
+  district?: string | null
+  package?: string | null
+  packageInterest?: string | null
+  monthlyTL?: number | null
+  source?: string | null
+  covered?: boolean | null
+  contacted?: boolean
+}
+
+export interface SiteApplications {
+  site: SiteKey
+  label: string
+  error?: string
+  count?: number
+  uncontacted?: number
+  source?: string
+  note?: string
+  by_city?: { name: string; count: number }[]
+  by_package?: { name: string; count: number }[]
+  applications?: SiteApplicationRow[]
 }
