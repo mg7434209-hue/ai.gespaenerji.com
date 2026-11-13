@@ -34,6 +34,7 @@ export function useSpeech(onTranscript: (text: string) => void) {
       if (restartTimer.current) clearTimeout(restartTimer.current)
       if (silenceTimer.current) clearTimeout(silenceTimer.current)
       if (streamUrl.current) URL.revokeObjectURL(streamUrl.current)
+      if (silentUrl.current) URL.revokeObjectURL(silentUrl.current)
       playbackId.current++
       requestRef.current?.abort()
       audioRef.current?.pause()
@@ -51,10 +52,42 @@ export function useSpeech(onTranscript: (text: string) => void) {
     setSpeaking(false)
     setPreparing(false)
   }
+  // Sessiz klip: telefon tarayıcıları (özellikle iOS) sesi yalnız kullanıcının
+  // dokunuşu SIRASINDA başlatır. Yanıt saniyeler sonra geldiğinde dokunuş izni
+  // bitmiş olur ve ses "Yanıtı dinle"ye basılmadan çalmazdı. Dokunuş anında aynı
+  // oynatıcıda sessiz bir klip çalınınca oynatıcı açılır; yanıt gelince kendiliğinden konuşur.
+  const silentUrl = useRef<string | null>(null)
+  const unlocked = useRef(false)
+  const unlockId = useRef(0)
+  function silentClip() {
+    if (!silentUrl.current) {
+      const n = 800 // 0,1 sn · 8 kHz · 8 bit mono
+      const b = new Uint8Array(44 + n)
+      const v = new DataView(b.buffer)
+      const tag = (o: number, t: string) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i) }
+      tag(0, 'RIFF'); v.setUint32(4, 36 + n, true); tag(8, 'WAVEfmt '); v.setUint32(16, 16, true)
+      v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true)
+      v.setUint16(32, 1, true); v.setUint16(34, 8, true); tag(36, 'data'); v.setUint32(40, n, true)
+      b.fill(128, 44)
+      silentUrl.current = URL.createObjectURL(new Blob([b], { type: 'audio/wav' }))
+    }
+    return silentUrl.current
+  }
+  const isSilent = () => !!silentUrl.current && audioRef.current?.src === silentUrl.current
   function prepareAudio() {
-    // Otomatik oynatmayı engelleyen tarayıcılarda kullanıcı yerel oynatıcıya dokunur.
+    // Kullanıcı dokunuşu içinde çağrılır (mikrofon, gönder, öneri düğmesi).
     const audio = audioRef.current
-    if (audio) { audio.muted = false; audio.volume = 1 }
+    if (!audio) return
+    audio.muted = false; audio.volume = 1
+    if (unlocked.current || !audio.paused) return
+    const id = ++unlockId.current
+    try {
+      audio.src = silentClip()
+      void audio.play().then(() => {
+        unlocked.current = true
+        if (id === unlockId.current && isSilent()) audio.pause()
+      }).catch(() => { /* izin yoksa eski davranış: oynat düğmesi */ })
+    } catch { /* oynatıcı hazır değil */ }
   }
   async function speak(text: string) {
     stopSpeaking()
@@ -64,7 +97,8 @@ export function useSpeech(onTranscript: (text: string) => void) {
     if (!input) return
     const audio = audioRef.current
     if (!audio) { setError('Ses oynatıcı açılamadı. Sayfayı yenileyin.'); return }
-    prepareAudio()
+    unlockId.current++ // bekleyen sessiz klip gerçek yanıtı durdurmasın
+    audio.muted = false; audio.volume = 1
     setPreparing(true)
     try {
       let url = cached.current?.text === input ? cached.current.url : null
@@ -139,9 +173,10 @@ export function useSpeech(onTranscript: (text: string) => void) {
         : err instanceof Error ? err.message : 'Ses oynatılamadı.')
     }
   }
-  const onAudioPlay = () => { stopListening(); setPreparing(false); setSpeaking(true); setError(null) }
-  const onAudioPause = () => setSpeaking(false)
-  const onAudioError = () => { setPreparing(false); setSpeaking(false); setError('Ses dosyası oynatılamadı. Yanıtı dinle ile yeniden deneyin.') }
+  // Sessiz açılış klibinin olayları yok sayılır (dinlemeyi kesmesin, "konuşuyorum" göstermesin).
+  const onAudioPlay = () => { if (isSilent()) return; stopListening(); setPreparing(false); setSpeaking(true); setError(null) }
+  const onAudioPause = () => { if (isSilent()) return; setSpeaking(false) }
+  const onAudioError = () => { if (isSilent()) return; setPreparing(false); setSpeaking(false); setError('Ses dosyası oynatılamadı. Yanıtı dinle ile yeniden deneyin.') }
   function toggleListening() {
     if (micActive.current) { recognition.current?.stop(); return }
     startListening()
@@ -192,6 +227,7 @@ export function useSpeech(onTranscript: (text: string) => void) {
     startListening()
   }
   function onAudioEnded() {
+    if (isSilent()) return
     onAudioPause()
     if (conversationMode.current) scheduleListening()
   }

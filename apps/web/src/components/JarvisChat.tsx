@@ -18,6 +18,7 @@ const TOOL_LABELS: Record<string, string> = {
   site_orders: '🛒 siparişler',
   site_catalog: '📦 katalog',
   site_questions: '❓ soru-cevap',
+  site_applications: '📝 başvurular',
 }
 
 const SUGGESTIONS = ['Siteler bugün nasıl?', 'Yeni sipariş var mı?', 'Hangi ürünlerde sorun var?']
@@ -32,9 +33,11 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
   const [configured, setConfigured] = useState(true)
   const [voiceEnabled, setVoiceEnabled] = useState(fullPage)
   const [loading, setLoading] = useState(true)
-  const speech = useSpeech(value => { if (fullPage) void ask(value.slice(0, 4000)); else setText(prev => (prev + ' ' + value).trim().slice(0, 4000)) })
+  // Sesle sorulan soru doğrudan gönderilir ve yanıt sesli okunur (ayrıca "Gönder" / "Yanıtı dinle" gerekmez).
+  const speech = useSpeech(value => { void ask(value.slice(0, 4000), true) })
   function microphoneClick() {
-    if (fullPage) { setVoiceEnabled(true); speech.toggleConversation() } else speech.toggleListening()
+    setVoiceEnabled(true)
+    if (fullPage) speech.toggleConversation(); else speech.toggleListening()
   }
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -59,7 +62,7 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
     if (el) el.scrollTop = el.scrollHeight
   }, [messages.length, sending])
 
-  async function ask(body: string) {
+  async function ask(body: string, spoken = false) {
     body = body.trim()
     if (!body || sending || loading || !configured) return
     speech.stopListening()
@@ -76,7 +79,7 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
         message: body,
         conversation_id: conversationId,
       })
-      if (voiceEnabled) speech.speak(data.reply)
+      if (voiceEnabled || spoken) speech.speak(data.reply)
       setConversationId(data.conversation_id)
       setMessages((prev) => [
         ...prev,
@@ -107,7 +110,7 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
     const status = loading ? 'Bağlanıyorum…' : !configured ? 'Bağlantı hazır değil' : speech.listening ? 'Dinliyorum' : sending ? 'Düşünüyorum' : speech.preparing ? 'Ses hazırlanıyor…' : speech.speaking ? 'Konuşuyorum' : speech.conversationActive ? 'Sesli sohbet açık' : 'Sizi dinlemeye hazırım'
     return <main className={'jarvis-stage ' + state}>
       <header className="jarvis-top"><a href="/" className="jarvis-wordmark">J.A.R.V.I.S<span>GESPA</span></a><div className="jarvis-actions">
-        <button type="button" aria-label={voiceEnabled ? 'Sesli yanıtı kapat' : 'Sesli yanıtı aç'} aria-pressed={voiceEnabled} onClick={() => { setVoiceEnabled(!voiceEnabled); if (!voiceEnabled) speech.speak('Sesli yanıt açık.'); else speech.endConversation() }}>{voiceEnabled ? <Volume2 size={20}/> : <VolumeX size={20}/>}</button>
+        <button type="button" aria-label={voiceEnabled ? 'Sesli yanıtı kapat' : 'Sesli yanıtı aç'} aria-pressed={voiceEnabled} onClick={() => { setVoiceEnabled(!voiceEnabled); if (!voiceEnabled) { speech.prepareAudio(); speech.speak('Sesli yanıt açık.') } else speech.endConversation() }}>{voiceEnabled ? <Volume2 size={20}/> : <VolumeX size={20}/>}</button>
         <button type="button" disabled={sending || loading} onClick={newChat} aria-label="Yeni sohbet"><Plus size={20}/></button>
       </div></header>
       <section className="jarvis-center" aria-label="JARVIS sesli asistan">
@@ -138,7 +141,7 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
           <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wide">JARVIS</h2>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">yalnız okur</span>
         </div>
-        <button type="button" onClick={() => { setVoiceEnabled(!voiceEnabled); if (!voiceEnabled) speech.speak('Sesli yanıt açık.'); else speech.endConversation() }} disabled={!speech.canSpeak} aria-pressed={voiceEnabled} className="text-sm min-h-11 flex items-center gap-2 text-slate-300 disabled:opacity-50">{voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}Sesli yanıt {voiceEnabled ? "açık" : "kapalı"}</button>
+        <button type="button" onClick={() => { setVoiceEnabled(!voiceEnabled); if (!voiceEnabled) { speech.prepareAudio(); speech.speak('Sesli yanıt açık.') } else speech.endConversation() }} disabled={!speech.canSpeak} aria-pressed={voiceEnabled} className="text-sm min-h-11 flex items-center gap-2 text-slate-300 disabled:opacity-50">{voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}Sesli yanıt {voiceEnabled ? "açık" : "kapalı"}</button>
         {messages.length > 0 && (
           <button onClick={newChat} disabled={sending} className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
             <Plus className="w-3 h-3" /> Yeni sohbet
@@ -157,7 +160,7 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
-              onClick={() => ask(s)}
+              onClick={() => { if (voiceEnabled) speech.prepareAudio(); ask(s) }}
               disabled={sending || !configured}
               className="text-sm px-3 py-1.5 rounded-full border border-slate-700 text-slate-300 hover:border-brand-500/50 hover:text-slate-100 transition-colors disabled:opacity-50"
             >
@@ -203,11 +206,11 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
       <audio ref={speech.audioRef} controls playsInline preload="none" hidden={!speech.audioReady} onPlay={speech.onAudioPlay} onPause={speech.onAudioPause} onEnded={speech.onAudioEnded} onError={speech.onAudioError} aria-label="JARVIS sesli yanıt" style={{width:'100%', marginTop:12}} />
       {speech.preparing && <p role="status" className="text-sm text-slate-400">Ses hazırlanıyor…</p>}
       {(error || speech.error) && <p role="alert" className="text-sm text-red-400 mb-3">{error || speech.error}</p>}
-      {speech.listening && <p role="status" className="text-sm text-brand-400 mb-3">Dinliyorum… Konuşmanız mesaj kutusuna yazılacak.</p>}
+      {speech.listening && <p role="status" className="text-sm text-brand-400 mb-3">Dinliyorum… Sorunuz bitince yanıtlıyorum.</p>}
       {!speech.speaking && messages.some(m => m.role === 'assistant') && <button type="button" disabled={sending || speech.listening || !speech.canSpeak} onClick={() => { const reply = [...messages].reverse().find(m => m.role === 'assistant'); if (reply) speech.speak(reply.text) }} className="text-sm text-brand-400 min-h-11">Yanıtı dinle</button>}
       {speech.speaking && <button type="button" onClick={speech.stopSpeaking} className="text-sm text-brand-400 min-h-11">Sesli okumayı durdur</button>}
 
-      <form onSubmit={(e) => { e.preventDefault(); ask(text) }} className={clsx("flex gap-2", fullPage && "mt-auto")}>
+      <form onSubmit={(e) => { e.preventDefault(); if (voiceEnabled) speech.prepareAudio(); ask(text) }} className={clsx("flex gap-2", fullPage && "mt-auto")}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -216,12 +219,12 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
           disabled={sending || !configured}
           maxLength={4000}
         />
-        <button type="button" onClick={microphoneClick} disabled={sending || !configured} aria-label={speech.listening ? "Dinlemeyi durdur" : "Mikrofonla yazdır"} aria-pressed={speech.listening} className="shrink-0 min-w-11 min-h-11 rounded-lg border border-slate-700 text-brand-400 flex items-center justify-center">{speech.listening ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}</button>
+        <button type="button" onClick={microphoneClick} disabled={sending || !configured} aria-label={speech.listening ? "Dinlemeyi durdur" : "Sesle sor"} aria-pressed={speech.listening} className="shrink-0 min-w-11 min-h-11 rounded-lg border border-slate-700 text-brand-400 flex items-center justify-center">{speech.listening ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}</button>
         <button type="submit" disabled={sending || !configured || !text.trim()} className="btn-primary px-4" aria-label="Gönder">
           <Send className="w-4 h-4" />
         </button>
       </form>
-      <p className="text-xs text-slate-400 leading-relaxed mt-3">Mikrofona basın, konuşun ve Gönder’e dokunun. Ses desteği tarayıcıya göre değişir. {!speech.supported && "Alternatif: telefon klavyenizin mikrofonunu kullanın."}</p>
+      <p className="text-xs text-slate-400 leading-relaxed mt-3">Mikrofona basın ve sorun: JARVIS doğrudan sesli yanıtlar. Ses desteği tarayıcıya göre değişir. {!speech.supported && "Alternatif: telefon klavyenizin mikrofonunu kullanın."}</p>
     </div>
   )
 }
