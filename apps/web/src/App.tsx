@@ -1,14 +1,17 @@
 import { JarvisChat } from './components/JarvisChat'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { Layout } from './components/Layout'
+import { AppShell } from './components/layout/AppShell'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Workspaces } from './pages/Workspaces'
 import { Leads } from './pages/Leads'
 import { Agents } from './pages/Agents'
 import { Settings } from './pages/Settings'
-import { Inbox } from './pages/Inbox'
+import { InboxPage } from './pages/inbox/InboxPage'
+import { Sites } from './pages/Sites'
+import { Orders } from './pages/Orders'
+import { Applications } from './pages/Applications'
 import { Roadmap } from './pages/Roadmap'
 import { Legal } from './pages/Legal'
 import { LegalAgentDetail } from './pages/LegalAgentDetail'
@@ -28,12 +31,15 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <Layout />
+            <AppShell />
           </ProtectedRoute>
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="inbox" element={<Inbox />} />
+        <Route path="siteler" element={<Sites />} />
+        <Route path="siparisler" element={<Orders />} />
+        <Route path="basvurular" element={<Applications />} />
+        <Route path="inbox" element={<InboxPage />} />
         <Route path="roadmap" element={<Roadmap />} />
         <Route path="workspaces" element={<Workspaces />} />
         <Route path="workspaces/:slug" element={<Workspaces />} />

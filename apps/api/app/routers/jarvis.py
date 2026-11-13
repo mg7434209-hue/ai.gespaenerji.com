@@ -105,8 +105,63 @@ def get_conversation(conv_id: int, db: Session = Depends(get_db), user: User = D
 @router.get("/sites")
 def sites_cards(fresh: bool = False, db: Session = Depends(get_db),
                 user: User = Depends(get_current_user)):
-    """Ana sayfa kartları: gespaenerji.com + gesmarketim.com kısa özeti."""
-    return {"sites": [sites.card(s, sites.summary_with_ledger(db, s, fresh=fresh)) for s in sites.SITES]}
+    """Siteler ekranı ve ana sayfa kartları: beş sitenin kısa özeti."""
+    return {"sites": sites.all_cards(db, fresh=fresh)}
+
+
+@router.get("/orders")
+def orders_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Siparişler ekranı: iki ticari sitenin son 30 gün siparişleri (alıcı bilgisi yok).
+    JARVIS'in site_orders aracıyla AYNI kaynak — ekran ve sohbet birbirini tutar."""
+    from app.services import jarvis_tools
+    return {"sites": [{"label": sites.SITES[s]["label"],
+                       **jarvis_tools.site_orders(db, {"site": s, "limit": 50})} for s in sites.SITES]}
+
+
+@router.get("/applications")
+def applications_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Başvurular ekranı: tarifesec + internetbasvuru (ad ve telefon yok)."""
+    from app.services import jarvis_tools
+    labels = {"tarifesec": "tarifesec.net.tr", "internetbasvuru": "internetbasvuru.com"}
+    return {"sites": [{"label": labels[s],
+                       **jarvis_tools.site_applications(db, {"site": s, "limit": 50})} for s in labels]}
+
+
+# ── Onaylı yönetim: JARVIS önerir, burada onaylanır ──────────
+
+def _action(db: Session, action_id: int):
+    from app.models_jarvis import JarvisAction
+    row = db.query(JarvisAction).filter(JarvisAction.id == action_id).first()
+    if not row:
+        raise HTTPException(404, "Öneri bulunamadı")
+    return row
+
+
+@router.get("/actions")
+def actions_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models_jarvis import JarvisAction
+    from app.services import actions, github
+    rows = db.query(JarvisAction).order_by(JarvisAction.id.desc()).limit(30).all()
+    return {"can_approve": github.configured(), "actions": [actions.out(r) for r in rows]}
+
+
+@router.post("/actions/{action_id}/approve")
+def action_approve(action_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Oturumlu kullanıcı onaylar → GitHub'da PR açılır. JARVIS'in bu uca erişen aracı yoktur."""
+    from app.services import actions
+    try:
+        return actions.out(actions.approve(db, _action(db, action_id)))
+    except actions.ActionError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/actions/{action_id}/reject")
+def action_reject(action_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import actions
+    try:
+        return actions.out(actions.reject(db, _action(db, action_id)))
+    except actions.ActionError as e:
+        raise HTTPException(400, str(e))
 
 
 # ── Sabah brifingi ───────────────────────────────────────────

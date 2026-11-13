@@ -219,9 +219,31 @@ def seed_legal_agents(db: Session) -> None:
         print(f"✓ {len(stale)} eski avukat ajanı kaldırıldı")
 
 
+# create_all yalnız YENİ tablo açar; var olan tabloya sonradan eklenen sütun
+# buraya yazılır (tablo, sütun, SQL tipi). Yalnız boş bırakılabilir sütun ekle.
+ADDED_COLUMNS = [
+    ("site_orders", "fulfilled", "BOOLEAN"),
+]
+
+
+def ensure_columns(bind=None):
+    from sqlalchemy import inspect, text
+    bind = bind or engine
+    insp = inspect(bind)
+    for table, column, sqltype in ADDED_COLUMNS:
+        if not insp.has_table(table):
+            continue
+        if column in {c["name"] for c in insp.get_columns(table)}:
+            continue
+        with bind.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sqltype}"))
+        print(f"✓ {table}.{column} sütunu eklendi")
+
+
 def seed():
     """Tablolar + ilk veri."""
     Base.metadata.create_all(bind=engine)
+    ensure_columns()
 
     db: Session = SessionLocal()
     try:
