@@ -340,7 +340,24 @@ def site_questions(db: Session, inp: dict) -> dict:
     if "error" in data:
         return {"site": "gespaenerji", "error": data["error"]}
     return {"site": "gespaenerji", **data.get("qa", {}),
-            "note": "Onay /admin.html Soru & Cevap kartından verilir; JARVIS onaylayamaz (Faz A)."}
+            "note": "Onay /admin.html Soru & Cevap kartından verilir; JARVIS onaylayamaz."}
+
+
+def propose_change(db: Session, inp: dict) -> dict:
+    """JARVIS'in TEK yazma aracı: yalnız onay kuyruğuna öneri yazar, siteye dokunmaz."""
+    from app.services import actions
+    try:
+        return actions.propose(db, inp)
+    except actions.ActionError as e:
+        raise ToolInputError(str(e))
+
+
+def list_proposals(db: Session, inp: dict) -> dict:
+    from app.models_jarvis import JarvisAction
+    from app.services import actions
+    rows = db.query(JarvisAction).order_by(JarvisAction.id.desc()).limit(15).all()
+    return {"pending": sum(1 for r in rows if r.status == "proposed"),
+            "proposals": [{**actions.out(r), "created_label": ts_label(r.created_at.isoformat() + "Z")} for r in rows]}
 
 
 def _schema(props: dict) -> dict:
@@ -357,6 +374,27 @@ TOOLS = [
             "internetbasvuru.com: başvuru sayıları, il ve paket dağılımı. cezarehberi.com: ziyaretçi, okunmamış "
             "iletişim mesajı, en çok okunan yazılar. 'İşler nasıl', 'bugün ne var' sorularında önce bunu kullan."
         ),
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "propose_change",
+        "description": (
+            "gespaenerji.com'da bir ürünün FİYATINI ya da STOK adedini değiştirmek için ÖNERİ oluşturur. "
+            "Hiçbir şeyi değiştirmez: öneri Gespa OS'te 'Onay bekleyenler'e düşer, Mustafa onaylayınca GitHub'da "
+            "PR açılır. Yalnız Mustafa açıkça değişiklik istediğinde kullan; ürün ya da rakam belirsizse önce sor. "
+            "Ürün kimliğini site_catalog (include_products) ile bul. Tek öneride ya fiyat ya stok."
+        ),
+        "input_schema": {"type": "object", "properties": {
+            "site": {"type": "string", "enum": ["gespaenerji"]},
+            "product_id": {"type": "string", "description": "Ürün kimliği, örn. boost-mppt"},
+            "new_price_tl": {"type": "number", "description": "Yeni liste fiyatı ₺ (KDV dahil). Site kuruyla USD'ye çevrilir."},
+            "new_price_usd": {"type": "number", "description": "Yeni fiyat USD (₺ yerine verilirse)"},
+            "new_stock": {"type": ["integer", "null"], "description": "Yeni stok adedi; 0 = tükendi; null = stok sayısı kaldırılır"},
+        }, "required": ["site", "product_id"], "additionalProperties": False},
+    },
+    {
+        "name": "list_proposals",
+        "description": "Son fiyat/stok önerileri ve durumları: onay bekliyor (proposed), PR açıldı (pr_open), başarısız, reddedildi.",
         "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
     {
@@ -460,6 +498,8 @@ TOOLS = [
 HANDLERS: dict[str, Callable[[Session, dict], dict]] = {
     "site_overview": site_overview,
     "site_applications": site_applications,
+    "propose_change": propose_change,
+    "list_proposals": list_proposals,
     "site_orders": site_orders,
     "site_catalog": site_catalog,
     "site_questions": site_questions,

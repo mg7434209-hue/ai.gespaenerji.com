@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ClipboardList, ShoppingBag } from 'lucide-react'
 import { SiteCards } from '@/components/SiteCards'
+import { PendingActions } from '@/components/PendingActions'
 
 /** Tüm siteler tek ekranda: mağazalar, başvuru siteleri, içerik sitesi. */
 export function Sites() {
@@ -18,6 +19,7 @@ export function Sites() {
           <Link to="/basvurular" className="btn-ghost text-sm flex items-center gap-2"><ClipboardList className="w-4 h-4" /> Başvurular</Link>
         </div>
       </div>
+      <PendingActions />
       <SiteCards title="Durum" />
     </div>
   )

@@ -73,3 +73,29 @@ class JarvisRun(Base):
     error: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class JarvisAction(Base):
+    """JARVIS'in ÖNERDİĞİ site değişikliği (fiyat / stok) — onay kuyruğu.
+
+    JARVIS yalnız bu tabloya öneri yazar; siteye dokunamaz. Değişiklik ancak
+    Mustafa arayüzde "Onayla"ya basınca GitHub'da PR olarak açılır
+    (services/actions.py). Onay ucu oturum ister; JARVIS'in onay aracı YOKTUR.
+    """
+    __tablename__ = "jarvis_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    site: Mapped[str] = mapped_column(String(32), index=True)          # gespaenerji
+    kind: Mapped[str] = mapped_column(String(16))                      # price | stock
+    product_id: Mapped[str] = mapped_column(String(64))
+    product_name: Mapped[Optional[str]] = mapped_column(String(255))
+    # {"old": {...}, "new": {...}, "usd_try": 49.2} — öneri anındaki değerler
+    payload: Mapped[dict] = mapped_column(JSON)
+    summary: Mapped[str] = mapped_column(Text)                         # "BOOST MPPT: ₺7.200 → ₺7.500"
+    # proposed | pr_open | failed | rejected
+    status: Mapped[str] = mapped_column(String(16), default="proposed", index=True)
+    channel: Mapped[Optional[str]] = mapped_column(String(16))         # web | whatsapp
+    pr_url: Mapped[Optional[str]] = mapped_column(String(255))
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

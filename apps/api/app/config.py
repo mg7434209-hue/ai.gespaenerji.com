@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     tarifesec_os_token: str = ""
     ceza_site_url: str = "https://www.cezarehberi.com"
     ceza_os_token: str = ""
+    # Onaylı yönetim (services/actions.py): onaylanan öneri bu repoda PR olarak açılır.
+    # JARVIS_GITHUB_TOKEN: yalnız site repolarına "Contents" + "Pull requests" yazma
+    # izni olan ince taneli (fine-grained) belirteç. Yoksa öneri kaydedilir ama onaylanamaz.
+    jarvis_github_token: str = ""
+    gespa_repo: str = "mg7434209-hue/gespaenerji.com"
 
     # Sabah brifingi — BRIEF_* / JARVIS_BRIEF_MODEL
     jarvis_brief_model: str = "claude-sonnet-5-5"

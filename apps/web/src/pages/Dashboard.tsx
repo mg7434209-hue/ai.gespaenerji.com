@@ -2,6 +2,7 @@
 import { WhiskyHourCard } from '@/components/WhiskyHourCard'
 import { JarvisChat } from '@/components/JarvisChat'
 import { SiteCards } from '@/components/SiteCards'
+import { PendingActions } from '@/components/PendingActions'
 import { useEffect, useState } from 'react'
 import { TrendingUp, Users, Target, Zap, ArrowUpRight, ExternalLink, Globe, Scale, AlertTriangle, CalendarClock } from 'lucide-react'
 import clsx from 'clsx'
@@ -77,6 +78,9 @@ export function Dashboard() {
 
       {/* Komuta kutusu — JARVIS gerçek veriden cevap verir */}
       <JarvisChat />
+
+      {/* JARVIS'in önerdiği fiyat/stok değişiklikleri — onaylanınca PR açılır */}
+      <PendingActions />
 
       {/* Ana iş: iki ticari site */}
       <SiteCards only={['shop']} title="Mağazalar — durum" />

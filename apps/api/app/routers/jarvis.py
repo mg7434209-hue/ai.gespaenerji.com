@@ -127,6 +127,43 @@ def applications_list(db: Session = Depends(get_db), user: User = Depends(get_cu
                        **jarvis_tools.site_applications(db, {"site": s, "limit": 50})} for s in labels]}
 
 
+# ── Onaylı yönetim: JARVIS önerir, burada onaylanır ──────────
+
+def _action(db: Session, action_id: int):
+    from app.models_jarvis import JarvisAction
+    row = db.query(JarvisAction).filter(JarvisAction.id == action_id).first()
+    if not row:
+        raise HTTPException(404, "Öneri bulunamadı")
+    return row
+
+
+@router.get("/actions")
+def actions_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models_jarvis import JarvisAction
+    from app.services import actions, github
+    rows = db.query(JarvisAction).order_by(JarvisAction.id.desc()).limit(30).all()
+    return {"can_approve": github.configured(), "actions": [actions.out(r) for r in rows]}
+
+
+@router.post("/actions/{action_id}/approve")
+def action_approve(action_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Oturumlu kullanıcı onaylar → GitHub'da PR açılır. JARVIS'in bu uca erişen aracı yoktur."""
+    from app.services import actions
+    try:
+        return actions.out(actions.approve(db, _action(db, action_id)))
+    except actions.ActionError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/actions/{action_id}/reject")
+def action_reject(action_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import actions
+    try:
+        return actions.out(actions.reject(db, _action(db, action_id)))
+    except actions.ActionError as e:
+        raise HTTPException(400, str(e))
+
+
 # ── Sabah brifingi ───────────────────────────────────────────
 
 @router.post("/briefing/run")

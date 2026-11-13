@@ -19,9 +19,11 @@ const TOOL_LABELS: Record<string, string> = {
   site_catalog: '📦 katalog',
   site_questions: '❓ soru-cevap',
   site_applications: '📝 başvurular',
+  propose_change: '✍️ öneri (onay bekliyor)',
+  list_proposals: '📋 öneriler',
 }
 
-const SUGGESTIONS = ['Siteler bugün nasıl?', 'Yeni sipariş var mı?', 'Hangi ürünlerde sorun var?']
+const SUGGESTIONS = ['Siteler bugün nasıl?', 'Yeni sipariş ya da başvuru var mı?', 'Hangi ürünlerde sorun var?']
 
 /** Ana sayfadaki komuta kutusu — JARVIS gerçek veriden cevap verir (Faz 1: yalnız okur). */
 export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
@@ -139,7 +141,7 @@ export function JarvisChat({ fullPage = false }: { fullPage?: boolean }) {
         <div className="flex items-center gap-2">
           <Bot className="w-5 h-5 text-brand-400" />
           <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wide">JARVIS</h2>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">yalnız okur</span>
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">okur · değişikliği onayına sunar</span>
         </div>
         <button type="button" onClick={() => { setVoiceEnabled(!voiceEnabled); if (!voiceEnabled) { speech.prepareAudio(); speech.speak('Sesli yanıt açık.') } else speech.endConversation() }} disabled={!speech.canSpeak} aria-pressed={voiceEnabled} className="text-sm min-h-11 flex items-center gap-2 text-slate-300 disabled:opacity-50">{voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}Sesli yanıt {voiceEnabled ? "açık" : "kapalı"}</button>
         {messages.length > 0 && (

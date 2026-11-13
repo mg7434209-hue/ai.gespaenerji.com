@@ -128,7 +128,8 @@ def test_empty_lead_table_reports_source_not_absence(db):
 
 
 def test_every_tool_is_read_only(db, data):
-    """Faz 1 kuralı: hiçbir araç veritabanına yazmaz."""
+    """Öneri aracı (propose_change) dışında hiçbir araç veritabanına yazmaz; o da yalnız
+    onay kuyruğuna yazar (tests/test_actions.py)."""
     from sqlalchemy import event
 
     writes = []
@@ -136,6 +137,8 @@ def test_every_tool_is_read_only(db, data):
     event.listen(db, "before_flush", listener)
     try:
         for name in jarvis_tools.HANDLERS:
+            if name == "propose_change":
+                continue
             inp = ({"matter_id": data["matter"].id} if name == "get_matter"
                    else {"site": "gespaenerji"} if name in ("site_orders", "site_catalog")
                    else {"site": "internetbasvuru"} if name == "site_applications" else {})
