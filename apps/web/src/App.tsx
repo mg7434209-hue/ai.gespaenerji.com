@@ -8,7 +8,7 @@ import { Workspaces } from './pages/Workspaces'
 import { Leads } from './pages/Leads'
 import { Agents } from './pages/Agents'
 import { Settings } from './pages/Settings'
-import { Inbox } from './pages/Inbox'
+import { InboxPage } from './pages/inbox/InboxPage'
 import { Sites } from './pages/Sites'
 import { Orders } from './pages/Orders'
 import { Applications } from './pages/Applications'
@@ -39,7 +39,7 @@ export default function App() {
         <Route path="siteler" element={<Sites />} />
         <Route path="siparisler" element={<Orders />} />
         <Route path="basvurular" element={<Applications />} />
-        <Route path="inbox" element={<Inbox />} />
+        <Route path="inbox" element={<InboxPage />} />
         <Route path="roadmap" element={<Roadmap />} />
         <Route path="workspaces" element={<Workspaces />} />
         <Route path="workspaces/:slug" element={<Workspaces />} />
