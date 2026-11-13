@@ -1,7 +1,7 @@
 import { JarvisChat } from './components/JarvisChat'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { Layout } from './components/Layout'
+import { AppShell } from './components/layout/AppShell'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Workspaces } from './pages/Workspaces'
@@ -31,7 +31,7 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <Layout />
+            <AppShell />
           </ProtectedRoute>
         }
       >

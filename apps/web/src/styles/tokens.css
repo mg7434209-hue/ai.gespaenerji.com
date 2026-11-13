@@ -1,0 +1,29 @@
+/* Gespa OS — kabuk ve Inbox için tek renk kaynağı.
+   Tailwind'de `os-*` adlarıyla (tailwind.config.js) bu değişkenlere bağlanır.
+   Genel `brand` sarısı ve slate sınıfları eski sayfalar içindir; dokunulmadı. */
+:root {
+  --bg: #0B1020;        /* sayfa zemini */
+  --nav: #0E1428;       /* menü, alt çubuklar */
+  --panel: #111830;     /* kartlar */
+  --raised: #1B2440;    /* seçili/aktif zemin */
+  --line: #1E2740;      /* kenarlık */
+  --line-strong: #2A3557;
+  --text: #E8ECF5;
+  --text-2: #C5CEE0;
+  --muted: #9AA6BF;
+  --faint: #8F9BB5;     /* grup başlıkları */
+  --accent: #F5B800;    /* sarı; üstündeki yazı --on-accent */
+  --on-accent: #1A1400;
+  --ok: #5FD3A0;
+  --urgent-bg: #3A1E14;
+  --urgent-fg: #FFB199;
+  --in-bg: #18213A;  --in-line: #243052;                    /* gelen mesaj */
+  --out-bg: #2A2410; --out-line: #5C4A0A; --out-text: #F7EBC0; /* giden mesaj */
+}
+
+/* Tıklanabilir her şeyde görünür odak çerçevesi (yalnız kabuk ve Inbox) */
+.shell :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.shell button, .shell a { -webkit-tap-highlight-color: transparent; }
