@@ -65,7 +65,7 @@ export function Sidebar({ collapsed, onToggleCollapsed, mobileOpen, onCloseMobil
         </div>
 
         {/* Gruplar */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
           {NAV_GROUPS.map((g) => (
             <div key={g.title}>
               <div className={clsx('px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-os-faint', hide)}>
